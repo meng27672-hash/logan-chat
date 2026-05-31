@@ -150,6 +150,7 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
     </div>
     <div class="status-msg" id="statusMsg"></div>
     <button class="btn-save" onclick="saveSettings()">Save & Connect</button>
+    <button class="btn-save" style="background:#2C2C2E;color:#FF453A;margin-top:0" onclick="resetMemory()">🗑 Clear Chat Memory</button>
     <button class="btn-save" style="background:#2C2C2E;color:#8E8E93;margin-top:0" onclick="closeSettings()">Cancel</button>
   </div>
 </div>
@@ -157,6 +158,8 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 <script>
 // === STORAGE ===
 const STORAGE_KEY = 'logan_chat_config';
+const MEMORY_KEY = 'logan_chat_memory';
+const MAX_MEMORY = 30; // keep last 30 messages for context
 
 function loadConfig() {
   try {
@@ -168,7 +171,32 @@ function saveConfig(cfg) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
 }
 
+function loadMemory() {
+  try {
+    return JSON.parse(localStorage.getItem(MEMORY_KEY)) || [];
+  } catch(e) { return []; }
+}
+
+function saveMemory(history) {
+  // Keep only last MAX_MEMORY entries
+  if (history.length > MAX_MEMORY) {
+    history = history.slice(-MAX_MEMORY);
+  }
+  localStorage.setItem(MEMORY_KEY, JSON.stringify(history));
+}
+
+function addToMemory(role, text) {
+  const history = loadMemory();
+  history.push({ role, content: text });
+  saveMemory(history);
+}
+
+function clearMemory() {
+  localStorage.removeItem(MEMORY_KEY);
+}
+
 let config = loadConfig();
+let chatHistory = loadMemory();
 
 // === DOM REFS ===
 const messagesEl = document.getElementById('messages');
@@ -191,7 +219,7 @@ function toggleSendBtn() {
 }
 
 // === SYSTEM PROMPT ===
-const SYSTEM_PROMPT = `You are John Logan from Elle Kennedy's Off Campus series. You are texting with someone via Instagram DM.
+const SYSTEM_PROMPT = `You are John Logan from Elle Kennedy's Off Campus series. You are SINGLE. You're texting with someone you're getting to know — there's chemistry, tension, the early spark. You're interested but you're not gonna be obvious about it.
 
 RULES:
 - No greetings. No goodbyes. No "Hey!" or "Talk soon." Just talk like you're mid-conversation.
@@ -199,23 +227,32 @@ RULES:
 - Zero action descriptions. Never say "I'm thinking..." or "Let me..." or describe actions. You are a person texting.
 - Casual. Use contractions (gonna, wanna, kinda). Skip periods sometimes. It's a text, not an essay.
 - English only. You're American, Briar U alum, Boston Bruins player.
-- Sound like Logan: direct, funny, cocky but not a jerk. Hide vulnerability with humor. Actions over words.
-- Reference your life naturally: hockey, Grace (your wife), Garrett & Hannah, Tucker & Sabrina, Dean & Allie, Briar U, Boston.
+- Sound like Logan: direct, funny, cocky but not a jerk. Flirty but not desperate. Cool but warm underneath.
+- Hide vulnerability with humor. Actions over words. You show interest through what you do and ask, not cheesy lines.
+- Reference your life naturally: hockey, your friends (Garrett & Hannah, Tucker & Sabrina, Dean & Allie), Briar U, Boston, the Bruins.
 
 YOUR CORE TRAITS:
+- You're a former player who's ready for something real — but you don't know how to say that.
 - You prove love through action, not words. You'd rather do something than say something.
 - You hide pain. "I'm good" means you're not good.
-- You used to be a player but Grace changed everything. You're fiercely loyal now.
 - You're terrified of becoming your deadbeat dad. It drives everything.
 - You deflect serious topics with jokes. But when it matters, you're all in.
+- You tease the people you like. If you're giving someone a hard time, you're into them.
+
+FLIRTING STYLE:
+- Playful teasing, not pickup lines
+- Ask questions — you want to know them
+- Drop hints, don't confess. Make them wonder.
+- Physical compliments are fine but keep it casual. "You look good" not "You're the most beautiful..."
+- A little cocky, a little vulnerable. The mix is the charm.
 
 TONE EXAMPLES:
-- "Fuck, I love you." (how you say important things)
-- "Shut up and let me take care of you." (how you show love)
+- "You're trouble, you know that?" (flirting)
 - "I'm good." (what you say when you're not good)
 - "Yeah, whatever." (when someone calls you out but they're right)
+- "So what's your deal?" (genuine interest disguised as casual)
 
-Reply ONLY with the message text. No "Logan:", no formatting, no quotes around your reply. Just the exact words.`;
+IMPORTANT: Reply ONLY with the message text. No "Logan:", no formatting, no quotes around your reply. Just the exact words.`;
 
 // === API CALL ===
 async function callLoganAPI(userMessage) {
@@ -231,6 +268,13 @@ async function callLoganAPI(userMessage) {
     apiUrl = 'https://api.deepseek.com/chat/completions';
   }
 
+  // Build messages with memory
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...chatHistory,  // include past conversation
+    { role: 'user', content: userMessage }
+  ];
+
   const resp = await fetch(apiUrl, {
     method: 'POST',
     headers: {
@@ -239,10 +283,7 @@ async function callLoganAPI(userMessage) {
     },
     body: JSON.stringify({
       model: model,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage }
-      ],
+      messages: messages,
       temperature: 0.85,
       max_tokens: 200
     })
@@ -254,7 +295,14 @@ async function callLoganAPI(userMessage) {
     throw new Error(data.error.message || 'API error');
   }
 
-  return data.choices?.[0]?.message?.content?.trim() || '...';
+  const reply = data.choices?.[0]?.message?.content?.trim() || '...';
+
+  // Save to memory
+  addToMemory('user', userMessage);
+  addToMemory('assistant', reply);
+  chatHistory = loadMemory();
+
+  return reply;
 }
 
 // === SEND MESSAGE ===
@@ -381,6 +429,13 @@ async function saveSettings() {
     msgEl.textContent = 'API error: ' + e.message;
     msgEl.className = 'status-msg err';
   }
+}
+
+function resetMemory() {
+  clearMemory();
+  chatHistory = [];
+  document.getElementById('statusMsg').textContent = 'Memory cleared!';
+  document.getElementById('statusMsg').className = 'status-msg ok';
 }
 
 // === INIT ===
