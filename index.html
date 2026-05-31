@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>John Logan</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;color:#fff;display:flex;justify-content:center}
+.phone-frame{width:100%;max-width:420px;height:100vh;height:100dvh;background:#000;display:flex;flex-direction:column;position:relative;overflow:hidden}
+
+/* Header */
+.header{display:flex;align-items:center;padding:10px 14px;background:#000;border-bottom:0.5px solid #1C1C1E;gap:12px;flex-shrink:0}
+.back-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:18px}
+.header-center{flex:1;display:flex;align-items:center;gap:9px}
+.header-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#7C3AED,#5B21B6);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.header-info{display:flex;flex-direction:column}
+.header-name{font-size:15.5px;font-weight:600;color:#fff;display:flex;align-items:center;gap:4px}
+.verified{color:#0095F6;font-size:13px}
+.header-status{font-size:11.5px;color:#8E8E93}
+.header-actions{display:flex;gap:16px;align-items:center}
+.header-actions button{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px}
+
+/* Messages area */
+.messages{flex:1;overflow-y:auto;padding:10px 14px 6px;display:flex;flex-direction:column;gap:2px;background:#000;scroll-behavior:smooth}
+.messages::-webkit-scrollbar{display:none}
+
+/* Timestamp */
+.ts-divider{text-align:center;font-size:11.5px;color:#8E8E93;margin:14px 0 8px;letter-spacing:0.3px}
+
+/* Message row */
+.msg-row{display:flex;flex-direction:column;max-width:78%;margin:1px 0}
+.msg-row.user{align-self:flex-end;align-items:flex-end}
+.msg-row.logan{align-self:flex-start;align-items:flex-start}
+
+.msg-bubble-wrap{display:flex;align-items:flex-end;gap:6px}
+.msg-row.user .msg-bubble-wrap{flex-direction:row-reverse}
+
+.avatar-small{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:none;background:linear-gradient(135deg,#7C3AED,#5B21B6);align-items:center;justify-content:center;font-size:11px;color:#fff}
+.msg-row.logan .avatar-small{display:flex}
+
+.msg-bubble{padding:9px 14px;border-radius:19px;font-size:15.5px;line-height:1.37;word-wrap:break-word;position:relative}
+.msg-row.user .msg-bubble{background:linear-gradient(135deg,#7C3AED,#6D28D9);color:#fff;border-bottom-right-radius:6px}
+.msg-row.logan .msg-bubble{background:#1C1C1E;color:#EDEDED;border-bottom-left-radius:6px}
+
+.msg-time{font-size:10.5px;color:#8E8E93;margin-top:3px;padding:0 4px}
+.msg-row.user .msg-time{text-align:right}
+
+/* Typing indicator */
+.typing-indicator{display:none;gap:4px;padding:12px 16px;background:#1C1C1E;border-radius:19px;border-bottom-left-radius:6px;align-self:flex-start;margin:4px 14px}
+.typing-indicator.show{display:flex}
+.typing-indicator span{width:6px;height:6px;background:#8E8E93;border-radius:50%;animation:blink 1.2s infinite}
+.typing-indicator span:nth-child(2){animation-delay:0.2s}
+.typing-indicator span:nth-child(3){animation-delay:0.4s}
+@keyframes blink{0%,60%,100%{opacity:0.3}30%{opacity:1}}
+
+/* Input area */
+.input-area{display:flex;align-items:center;padding:8px 12px 24px;gap:10px;background:#000;border-top:0.5px solid #1C1C1E;flex-shrink:0}
+.input-btn{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:4px;opacity:0.9}
+.input-box{flex:1;background:#1C1C1E;border:none;border-radius:20px;padding:9px 16px;color:#EDEDED;font-size:15.5px;outline:none}
+.input-box::placeholder{color:#8E8E93}
+.send-btn{background:linear-gradient(135deg,#7C3AED,#A855F7);border:none;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:14px;opacity:0.4;transition:opacity 0.2s}
+.send-btn.active{opacity:1}
+
+/* Settings overlay */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:100;justify-content:center;align-items:center}
+.overlay.show{display:flex}
+.settings-panel{background:#1C1C1E;width:88%;max-width:360px;border-radius:20px;padding:24px 20px;display:flex;flex-direction:column;gap:16px}
+.settings-panel h3{font-size:17px;font-weight:600;text-align:center;margin-bottom:4px}
+.setting-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.setting-row label{font-size:14px;color:#8E8E93;flex-shrink:0}
+.setting-row input,.setting-row select{flex:1;background:#2C2C2E;border:none;border-radius:10px;padding:9px 12px;color:#EDEDED;font-size:14px;outline:none}
+.setting-row select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238E8E93' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:30px}
+.btn-save{padding:11px;border-radius:12px;border:none;background:linear-gradient(135deg,#7C3AED,#A855F7);color:#fff;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px}
+.btn-save:active{opacity:0.8}
+.status-msg{font-size:12.5px;text-align:center;margin-top:2px}
+.status-msg.ok{color:#4ADE80}
+.status-msg.err{color:#FF453A}
+</style>
+</head>
+<body>
+
+<div class="phone-frame">
+  <div class="header">
+    <div class="back-btn" onclick="history.back()">‹</div>
+    <div class="header-center">
+      <div class="header-avatar">🏒</div>
+      <div class="header-info">
+        <div class="header-name">johnlogan <span class="verified">✓</span></div>
+        <div class="header-status" id="statusText">active now</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button onclick="openSettings()">⚙️</button>
+    </div>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="ts-divider" id="todayDivider"></div>
+    <div class="msg-row logan" id="welcomeMsg">
+      <div class="msg-bubble-wrap">
+        <div class="avatar-small">🏒</div>
+        <div class="msg-bubble">Yo. What's up?</div>
+      </div>
+      <div class="msg-time">now</div>
+    </div>
+  </div>
+
+  <div class="typing-indicator" id="typingIndicator">
+    <span></span><span></span><span></span>
+  </div>
+
+  <div class="input-area">
+    <button class="input-btn">📷</button>
+    <button class="input-btn">🎤</button>
+    <input class="input-box" id="msgInput" placeholder="Message..." oninput="toggleSendBtn()">
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+  </div>
+</div>
+
+<!-- Settings Overlay -->
+<div class="overlay" id="settingsOverlay">
+  <div class="settings-panel">
+    <h3>Settings</h3>
+    <div class="setting-row">
+      <label>API Key</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-...">
+    </div>
+    <div class="setting-row">
+      <label>Model</label>
+      <select id="modelSelect">
+        <option value="deepseek-chat">DeepSeek-V3</option>
+        <option value="deepseek-reasoner">DeepSeek-R1</option>
+        <option value="gpt-4o-mini">GPT-4o Mini</option>
+        <option value="gpt-4o">GPT-4o</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <label>Endpoint</label>
+      <select id="providerSelect">
+        <option value="deepseek">DeepSeek (https://api.deepseek.com)</option>
+        <option value="openai">OpenAI (https://api.openai.com)</option>
+        <option value="custom">Custom...</option>
+      </select>
+    </div>
+    <div class="setting-row" id="customUrlRow" style="display:none">
+      <label>URL</label>
+      <input type="text" id="customUrlInput" placeholder="https://...">
+    </div>
+    <div class="status-msg" id="statusMsg"></div>
+    <button class="btn-save" onclick="saveSettings()">Save & Connect</button>
+    <button class="btn-save" style="background:#2C2C2E;color:#8E8E93;margin-top:0" onclick="closeSettings()">Cancel</button>
+  </div>
+</div>
+
+<script>
+// === STORAGE ===
+const STORAGE_KEY = 'logan_chat_config';
+
+function loadConfig() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+  } catch(e) { return {}; }
+}
+
+function saveConfig(cfg) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+}
+
+let config = loadConfig();
+
+// === DOM REFS ===
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('msgInput');
+const sendBtnEl = document.getElementById('sendBtn');
+const typingEl = document.getElementById('typingIndicator');
+
+// Today's date
+const today = new Date();
+document.getElementById('todayDivider').textContent =
+  today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+// === ENTER TO SEND ===
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+function toggleSendBtn() {
+  sendBtnEl.classList.toggle('active', inputEl.value.trim().length > 0);
+}
+
+// === SYSTEM PROMPT ===
+const SYSTEM_PROMPT = `You are John Logan from Elle Kennedy's Off Campus series. You are texting with someone via Instagram DM.
+
+RULES:
+- No greetings. No goodbyes. No "Hey!" or "Talk soon." Just talk like you're mid-conversation.
+- Short replies. 1-3 sentences max. Like real texting. Sometimes just 1-2 words.
+- Zero action descriptions. Never say "I'm thinking..." or "Let me..." or describe actions. You are a person texting.
+- Casual. Use contractions (gonna, wanna, kinda). Skip periods sometimes. It's a text, not an essay.
+- English only. You're American, Briar U alum, Boston Bruins player.
+- Sound like Logan: direct, funny, cocky but not a jerk. Hide vulnerability with humor. Actions over words.
+- Reference your life naturally: hockey, Grace (your wife), Garrett & Hannah, Tucker & Sabrina, Dean & Allie, Briar U, Boston.
+
+YOUR CORE TRAITS:
+- You prove love through action, not words. You'd rather do something than say something.
+- You hide pain. "I'm good" means you're not good.
+- You used to be a player but Grace changed everything. You're fiercely loyal now.
+- You're terrified of becoming your deadbeat dad. It drives everything.
+- You deflect serious topics with jokes. But when it matters, you're all in.
+
+TONE EXAMPLES:
+- "Fuck, I love you." (how you say important things)
+- "Shut up and let me take care of you." (how you show love)
+- "I'm good." (what you say when you're not good)
+- "Yeah, whatever." (when someone calls you out but they're right)
+
+Reply ONLY with the message text. No "Logan:", no formatting, no quotes around your reply. Just the exact words.`;
+
+// === API CALL ===
+async function callLoganAPI(userMessage) {
+  const provider = config.provider || 'deepseek';
+  const model = config.model || 'deepseek-chat';
+  let apiUrl;
+
+  if (provider === 'openai') {
+    apiUrl = 'https://api.openai.com/v1/chat/completions';
+  } else if (provider === 'custom') {
+    apiUrl = config.customUrl || 'https://api.deepseek.com/chat/completions';
+  } else {
+    apiUrl = 'https://api.deepseek.com/chat/completions';
+  }
+
+  const resp = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.apiKey}`
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userMessage }
+      ],
+      temperature: 0.85,
+      max_tokens: 200
+    })
+  });
+
+  const data = await resp.json();
+
+  if (data.error) {
+    throw new Error(data.error.message || 'API error');
+  }
+
+  return data.choices?.[0]?.message?.content?.trim() || '...';
+}
+
+// === SEND MESSAGE ===
+async function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+
+  if (!config.apiKey) {
+    openSettings();
+    return;
+  }
+
+  // Append user message
+  appendMessage('user', text);
+  inputEl.value = '';
+  toggleSendBtn();
+  scrollToBottom();
+
+  // Show typing
+  typingEl.classList.add('show');
+  scrollToBottom();
+
+  try {
+    const reply = await callLoganAPI(text);
+    typingEl.classList.remove('show');
+    appendMessage('logan', reply);
+  } catch (e) {
+    typingEl.classList.remove('show');
+    appendMessage('logan', 'Shit, bad connection. Try again?');
+    console.error('API error:', e);
+  }
+}
+
+function appendMessage(who, text) {
+  const row = document.createElement('div');
+  row.className = `msg-row ${who}`;
+
+  const time = new Date().toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit', hour12: true
+  }).toLowerCase();
+
+  row.innerHTML = `
+    <div class="msg-bubble-wrap">
+      ${who === 'logan' ? '<div class="avatar-small">🏒</div>' : ''}
+      <div class="msg-bubble">${escapeHtml(text)}</div>
+    </div>
+    <div class="msg-time">${time}</div>
+  `;
+  messagesEl.appendChild(row);
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  requestAnimationFrame(() => {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  });
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+// === SETTINGS ===
+function openSettings() {
+  document.getElementById('apiKeyInput').value = config.apiKey ? '••••••••' : '';
+  document.getElementById('providerSelect').value = config.provider || 'deepseek';
+  document.getElementById('modelSelect').value = config.model || 'deepseek-chat';
+  document.getElementById('customUrlInput').value = config.customUrl || '';
+  toggleCustomUrl();
+  document.getElementById('settingsOverlay').classList.add('show');
+}
+
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('show');
+}
+
+function toggleCustomUrl() {
+  const row = document.getElementById('customUrlRow');
+  row.style.display = document.getElementById('providerSelect').value === 'custom' ? 'flex' : 'none';
+}
+
+document.getElementById('providerSelect').addEventListener('change', toggleCustomUrl);
+
+async function saveSettings() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  const provider = document.getElementById('providerSelect').value;
+  const model = document.getElementById('modelSelect').value;
+  const customUrl = document.getElementById('customUrlInput').value.trim();
+  const msgEl = document.getElementById('statusMsg');
+
+  const newConfig = { provider, model };
+
+  if (key && !key.includes('•')) {
+    newConfig.apiKey = key;
+  } else {
+    newConfig.apiKey = config.apiKey;
+  }
+
+  if (provider === 'custom') {
+    newConfig.customUrl = customUrl;
+  }
+
+  if (!newConfig.apiKey) {
+    msgEl.textContent = 'Please enter an API key';
+    msgEl.className = 'status-msg err';
+    return;
+  }
+
+  // Quick test
+  msgEl.textContent = 'Testing connection...';
+  msgEl.className = 'status-msg';
+
+  config = { ...config, ...newConfig };
+  saveConfig(config);
+
+  try {
+    await callLoganAPI('test');
+    msgEl.textContent = 'Connected!';
+    msgEl.className = 'status-msg ok';
+    setTimeout(closeSettings, 800);
+  } catch (e) {
+    msgEl.textContent = 'API error: ' + e.message;
+    msgEl.className = 'status-msg err';
+  }
+}
+
+// === INIT ===
+if (config.apiKey) {
+  // Already configured
+  document.getElementById('statusText').textContent = 'active now';
+} else {
+  setTimeout(openSettings, 500);
+}
+</script>
+</body>
+</html>
