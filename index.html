@@ -599,35 +599,6 @@ function getRandomDelay(range) {
   return Math.round(range.min + weighted * (range.max - range.min)) * 1000;
 }
 
-async function simulateLoganReplyDelay(userMessage) {
-  const range = getLoganDelay();
-  const delayMs = getRandomDelay(range);
-
-  // Also: 10% chance of "left on read" for a while (extra delay)
-  const extraDelay = Math.random() < 0.10 ? getRandomDelay({ min: 60, max: 300 }) : 0;
-
-  // Log for debugging
-  console.log(`[Logan schedule: ${range.label}, delay: ${(delayMs/1000).toFixed(1)}s${extraDelay ? ' + extra '+ (extraDelay/1000).toFixed(1) + 's' : ''}]`);
-
-  // Show typing indicator after initial delay (not immediately!)
-  await new Promise(r => setTimeout(r, delayMs));
-  typingEl.classList.add('show');
-  scrollToBottom();
-
-  // "Typing" duration: 1-4 seconds (simulate typing speed)
-  const typingDuration = (1 + Math.random() * 3) * 1000;
-  await new Promise(r => setTimeout(r, typingDuration));
-  typingEl.classList.remove('show');
-
-  if (extraDelay) {
-    await new Promise(r => setTimeout(r, extraDelay));
-    typingEl.classList.add('show');
-    scrollToBottom();
-    await new Promise(r => setTimeout(r, (1 + Math.random() * 2) * 1000));
-    typingEl.classList.remove('show');
-  }
-}
-
 // ============================================================
 // SEND MESSAGE
 // ============================================================
@@ -637,14 +608,13 @@ async function sendMessage() {
 
   if (!config.apiKey) { openSettings(); return; }
 
-  // Append user message, keep the DOM ref
+  // 1. Append user message — show single ✓ (sent)
   const userRow = appendMessage('user', text);
-  const readEl  = userRow.querySelector('.read-status'); // the ✓ element
+  const readEl  = userRow.querySelector('.read-status');
   inputEl.value = '';
   toggleSendBtn();
   scrollToBottom();
 
-  // Status: sent (single ✓, grey)
   if (readEl) {
     readEl.textContent = '✓';
     readEl.classList.remove('read');
@@ -652,20 +622,47 @@ async function sendMessage() {
   }
 
   try {
-    // Phase 1: simulate Logan's schedule delay before typing
-    await simulateLoganReplyDelay(text);
+    // 2. Wait for Logan's schedule delay (simulate him being busy)
+    const range = getLoganDelay();
+    const delayMs = getRandomDelay(range);
+    const extraDelay = Math.random() < 0.10
+      ? getRandomDelay({ min: 60, max: 300 })
+      : 0;
 
-    // Phase 2: call API (typing indicator is shown inside simulateLoganReplyDelay)
-    const reply = await callLoganAPI(text);
+    console.log(`[Logan schedule: ${range.label}, delay: ${(delayMs/1000).toFixed(1)}s${extraDelay ? ' + extra ' + (extraDelay/1000).toFixed(1) + 's' : ''}]`);
 
-    // Phase 3: mark as READ (double ✓✓, blue) — Logan has "read" the message
+    await new Promise(r => setTimeout(r, delayMs));
+
+    // 3. Delay over — Logan has "read" the message → upgrade to double ✓✓
     if (readEl) {
       readEl.textContent = '✓✓';
       readEl.classList.add('read');
       readEl.dataset.read = 'read';
     }
 
+    // 4. Now show "typing..." indicator
+    typingEl.classList.add('show');
+    scrollToBottom();
+
+    // 5. Typing duration (1-4s), then hide before API call
+    const typingDuration = (1 + Math.random() * 3) * 1000;
+    await new Promise(r => setTimeout(r, typingDuration));
+    typingEl.classList.remove('show');
+
+    // 6. Extra "left on read" delay?
+    if (extraDelay) {
+      await new Promise(r => setTimeout(r, extraDelay));
+      typingEl.classList.add('show');
+      scrollToBottom();
+      const extraTyping = (1 + Math.random() * 2) * 1000;
+      await new Promise(r => setTimeout(r, extraTyping));
+      typingEl.classList.remove('show');
+    }
+
+    // 7. Finally call API and append reply
+    const reply = await callLoganAPI(text);
     appendMessage('logan', reply);
+
   } catch(e) {
     typingEl.classList.remove('show');
     appendMessage('logan', 'Shit, bad connection. Try again?');
