@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Logan">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.json">
 <title>John Logan</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -351,12 +356,20 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
         <div class="toggle-row">
           <div class="toggle-label">
             <div>Desktop Notifications</div>
-            <div class="toggle-desc">Show browser notification for new messages</div>
+            <div class="toggle-desc">Browser notification when tab is in background</div>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="desktopNotifyToggle" onchange="saveNotifySettings()">
             <span class="toggle-slider"></span>
           </label>
+        </div>
+        <div class="settings-item" onclick="setupMobilePush()" style="margin-top:8px">
+          <div class="settings-item-icon" style="background:#FF6B6B">&#x1f4f1;</div>
+          <div class="settings-item-text">
+            <div class="settings-item-label">Mobile Push Setup</div>
+            <div class="settings-item-desc">Install app to home screen for phone notifications</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="#555"><polyline points="8 4 16 12 8 20"/></svg>
         </div>
       </div>
     </div>
@@ -740,22 +753,18 @@ MUSIC: You love 2000s pop-punk, rock, hip-hop, and pop. Share songs naturally us
 YOUR PLAYLIST: Fall Out Boy - Sugar We're Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside | The All-American Rejects - Dirty Little Secret | Panic! At The Disco - I Write Sins Not Tragedies | Kanye West - Stronger | The Weeknd - Blinding Lights | Harry Styles - As It Was | Olivia Rodrigo - good 4 u | Post Malone - Sunflower | Miley Cyrus - Flowers | Sam Smith - Unholy | Post Malone - Circles | Steve Lacy - Bad Habit
 
 STICKER GUIDE: You can use [sticker:NAME] to send reaction memes. Available memes by mood:
-- laughing/funny: laugh_cry, laughing, giggity, laughing_man
-- smug/confident: smirk, smug_dog, trollface, cool_doge
-- surprised/shocked: pikachu, shocked, mindblown, ohmysoul
-- angry/frustrated: angry_arthur, table_flip, angry_woman, this_is_fine
-- sad/crying: crying_jordan, sad_pablo, cry_cat, disappointed
-- thinking/confused: thinking, confused, calculate, but_why
-- disgusted: disgust, ew_brother, judging, not_bad
-- love/supportive: heart_eyes, thumbs_up, fist_bump, you_can_do_it
-- tired/done: exhausted, done, sleeping, facepalm_pic
-- drake comparison: drake_like, drake_nah
-- drama: distracted, two_buttons, change_mind, expanding
-- flexing/cool: deal_with_it, flex, boss, winning
-- food/hungry: hungry, popcorn_gif, chef_kiss
-- party/celebrate: party_time, celebrate
-- awkward: awkward, nervous, hiding
-- sassy: sassy, side_eye, eye_roll
+- laughing/funny: laugh_cry, point_laugh, giggle
+- smug/confident: smirk, scumbag, boss_move
+- surprised/shocked: pikachu, shocked, mindblown
+- angry/frustrated: this_is_fine, disaster, staring
+- sad/crying: crying_jordan, cry_cat, sad_stare
+- thinking/confused: roll_safe, change_mind, shrug
+- disgusted: disgust, judging, mother_ignore
+- flirty/attracted: distracted, heart_eyes
+- tired/done: exhausted, hiding
+- drama: explaining, expanding
+- shade/tea: kermit_tea, smug_shade
+- chaos/wild: elmo_chaos
 Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the meme to your emotional tone — don't just use them randomly.`;
 
 // ============================================================
@@ -1220,33 +1229,77 @@ function loadNotifySettings() {
   document.getElementById('desktopNotifyToggle').checked = desktop;
 }
 
-// Send desktop notification when Logan replies
+// Mobile push setup guide
+function setupMobilePush() {
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const isAndroid = /Android/.test(navigator.userAgent);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+
+  if (isStandalone) {
+    showToast('Already installed! Enable notifications in Settings.');
+    subscribeToPush();
+    return;
+  }
+
+  let guide = '';
+  if (isIOS) {
+    guide = '1. Tap the Share button \n2. Scroll down and tap "Add to Home Screen"\n3. Name it "Logan" and tap Add\n4. Open the app from home screen\n5. Allow notifications when prompted';
+  } else if (isAndroid) {
+    guide = '1. Tap the menu (3 dots) \n2. Tap "Add to Home Screen"\n3. Tap "Install"\n4. Open the app from home screen\n5. Allow notifications when prompted';
+  } else {
+    guide = 'Install this page as an app:\n- Chrome/Edge: Menu > "Install John Logan..."\n- Then enable notifications';
+  }
+
+  if (confirm('Install as App for Mobile Notifications\n\n' + guide + '\n\nProceed?')) {
+    // On supported browsers, trigger the beforeinstallprompt
+    if (window.deferredPrompt) {
+      window.deferredPrompt.prompt();
+      window.deferredPrompt.userChoice.then((result) => {
+        if (result.outcome === 'accepted') {
+          showToast('App installed! Open from home screen.');
+        }
+        window.deferredPrompt = null;
+      });
+    } else {
+      showToast('Follow the steps above to install');
+    }
+  }
+}
+
+// Capture install prompt
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  window.deferredPrompt = e;
+});
+
+// Send notification when Logan replies (desktop + PWA mobile)
 function sendDesktopNotification(replyText) {
-  // Only send if notifications are enabled
   if (localStorage.getItem('notifyDesktop') !== 'true') return;
-  // Only send if page is not focused (user is away)
-  if (document.hasFocus()) return;
-  // Check permission
+
+  // In standalone PWA mode (phone), always notify
+  // In browser mode, only notify when page is not focused
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+  if (!isStandalone && document.hasFocus()) return;
+
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
 
   // Truncate long messages for notification preview
   const preview = replyText.length > 100 ? replyText.substring(0, 97) + '...' : replyText;
-  
+
   try {
     const notif = new Notification('John Logan', {
       body: preview,
       icon: (typeof AVATARS !== 'undefined' && AVATARS[currentAvatarIdx]) ? AVATARS[currentAvatarIdx] : '',
       tag: 'logan-reply',
       silent: localStorage.getItem('notifySound') !== 'true',
+      vibrate: isStandalone ? [200, 100, 200] : undefined,
     });
-    // Click notification → focus the tab
     notif.onclick = function() {
       window.focus();
       notif.close();
     };
-    // Auto-close after 5 seconds
-    setTimeout(() => notif.close(), 5000);
+    setTimeout(() => notif.close(), 8000);
   } catch(e) {
     console.log('Notification failed:', e);
   }
@@ -1407,99 +1460,75 @@ function formatMessageContent(text) {
 // Using Imgflip CDN template URLs (publicly hosted, stable)
 // ============================================================
 const STICKER_LIBRARY = {
-  // --- Laughing / Funny ---
-  laugh_cry:    "https://i.imgflip.com/2cp1qz.jpg",   // Laughing Leo (DiCaprio)
-  laughing:     "https://i.imgflip.com/3vzejt.jpg",   // Man laughing then serious
-  giggity:      "https://i.imgflip.com/1o1l2p.jpg",   // Quagmire Giggity
-  laughing_man: "https://i.imgflip.com/39t1m.jpg",    // Laughing man in suit
-  // --- Smug / Confident ---
-  smirk:        "https://i.imgflip.com/2fm6x.jpg",    // Smug Wonka (Condescending Wonka)
-  smug_dog:     "https://i.imgflip.com/4t0uw6.jpg",   // Doge smug side-eye
-  trollface:    "https://i.imgflip.com/1bij.jpg",     // Troll Face classic
-  cool_doge:    "https://i.imgflip.com/4t0m5k.jpg",   // Doge wearing sunglasses
-  // --- Surprised / Shocked ---
-  pikachu:      "https://i.imgflip.com/3ot2zw.jpg",   // Surprised Pikachu
-  shocked:      "https://i.imgflip.com/2k3tz3.jpg",   // Guy shocked mouth open
-  mindblown:    "https://i.imgflip.com/2cp1qz.jpg",   // Mind blown guy
-  ohmysoul:     "https://i.imgflip.com/2gn1hx.jpg",   // Black guy pointing at temple (Roll Safe)
-  // --- Angry / Frustrated ---
-  angry_arthur: "https://i.imgflip.com/30b1gx.jpg",   // Arthur's Fist
-  table_flip:   "https://i.imgflip.com/3asi4f.jpg",   // Table flip rage
-  angry_woman:  "https://i.imgflip.com/1g8my4.jpg",   // Angry woman yelling at cat
-  this_is_fine: "https://i.imgflip.com/1yxkcp.jpg",   // This Is Fine dog in fire
-  // --- Sad / Crying ---
-  crying_jordan:"https://i.imgflip.com/2hwogt.jpg",   // Crying Michael Jordan
-  sad_pablo:    "https://i.imgflip.com/1ihzfe.jpg",   // Sad Pablo Escobar waiting
-  cry_cat:      "https://i.imgflip.com/3ot2zw.jpg",   // Crying cat thumbs up
-  disappointed: "https://i.imgflip.com/2k3tz3.jpg",   // Disappointed black guy
-  // --- Thinking / Confused ---
-  thinking:     "https://i.imgflip.com/3vzejt.jpg",   // Confused math lady
-  confused:     "https://i.imgflip.com/26am.jpg",     // Confused Nick Young
-  calculate:    "https://i.imgflip.com/1ur9b0.jpg",   // Woman calculating / math
-  but_why:      "https://i.imgflip.com/1o1l2p.jpg",   // But Why? kid
-  // --- Disgust / Disapproval ---
-  disgust:      "https://i.imgflip.com/2fm6x.jpg",    // Disgusted face
-  ew_brother:   "https://i.imgflip.com/30b1gx.jpg",   // Ew brother ew
-  judging:      "https://i.imgflip.com/1bij.jpg",     // Judgmental face
-  not_bad:      "https://i.imgflip.com/2cp1qz.jpg",   // Not bad Obama
-  // --- Love / Support ---
-  heart_eyes:   "https://i.imgflip.com/4t0uw6.jpg",   // Heart eyes
-  thumbs_up:    "https://i.imgflip.com/3ot2zw.jpg",   // Thumbs up kid
-  fist_bump:    "https://i.imgflip.com/2gn1hx.jpg",   // Fist bump / respect
-  you_can_do_it:"https://i.imgflip.com/2hwogt.jpg",   // You can do it! encouragement
-  // --- Tired / Done ---
-  exhausted:    "https://i.imgflip.com/3vzejt.jpg",   // Exhausted SpongeBob
-  done:         "https://i.imgflip.com/2fm6x.jpg",    // I'm done / over it
-  sleeping:     "https://i.imgflip.com/1yxkcp.jpg",   // Sleeping / knocked out
-  facepalm_pic: "https://i.imgflip.com/2cp1qz.jpg",   // Facepalm Picard
-  // --- Drake (Hotline Bling) ---
-  drake_like:   "https://i.imgflip.com/30b1gx.jpg",   // Drake likes this
-  drake_nah:    "https://i.imgflip.com/3ot2zw.jpg",   // Drake nah / nope
-  // --- Relationship / Drama ---
-  distracted:   "https://i.imgflip.com/1ur9b0.jpg",   // Distracted Boyfriend
-  two_buttons:  "https://i.imgflip.com/1g8my4.jpg",   // Two Buttons sweat
-  change_mind:  "https://i.imgflip.com/2gn1hx.jpg",   // Change My Mind
-  expanding:    "https://i.imgflip.com/1ihzfe.jpg",   // Expanding Brain
-  // --- Flexing / Cool ---
-  deal_with_it: "https://i.imgflip.com/26am.jpg",     // Deal With It sunglasses
-  flex:         "https://i.imgflip.com/3asi4f.jpg",   // Flexing muscles
-  boss:         "https://i.imgflip.com/2k3tz3.jpg",   // Like a Boss
-  winning:      "https://i.imgflip.com/1bij.jpg",     // Charlie Sheen winning
-  // --- Food / Hungry ---
-  hungry:       "https://i.imgflip.com/4t0m5k.jpg",   // Hungry / need food
-  popcorn_gif:  "https://i.imgflip.com/3vzejt.jpg",   // Michael Jackson eating popcorn
-  chef_kiss:    "https://i.imgflip.com/2cp1qz.jpg",   // Chef's kiss
-  // --- Partying ---
-  party_time:   "https://i.imgflip.com/30b1gx.jpg",   // Party time / let's go
-  celebrate:    "https://i.imgflip.com/2hwogt.jpg",   // Celebrating / confetti
-  // --- Awkward ---
-  awkward:      "https://i.imgflip.com/1ur9b0.jpg",   // Awkward look monkey puppet
-  nervous:      "https://i.imgflip.com/2fm6x.jpg",    // Nervous sweating
-  hiding:       "https://i.imgflip.com/1yxkcp.jpg",   // Hiding / Homer backing into bush
-  // --- Sassy ---
-  sassy:        "https://i.imgflip.com/2gn1hx.jpg",   // Sassy / hand on hip
-  side_eye:     "https://i.imgflip.com/1ihzfe.jpg",   // Side eye Chloe
-  eye_roll:     "https://i.imgflip.com/1g8my4.jpg",   // Eye roll
+  // --- Laughing / Funny (3) ---
+  laugh_cry:    "memes/laughing_leo.jpg",        // Leonardo DiCaprio laughing hard
+  point_laugh:  "memes/pointing_rick.jpg",       // Rick Dalton pointing & laughing
+  giggle:       "memes/shrug.jpg",               // Kevin James shrug (lol idk)
+
+  // --- Smug / Confident (3) ---
+  smirk:        "memes/smug_wonka.jpg",          // Condescending Wonka (oh really?)
+  scumbag:      "memes/scumbag_steve.jpg",       // Scumbag Steve (yeah I did that)
+  boss_move:    "memes/elmo_coke.jpg",           // Elmo choosing (I know what I want)
+
+  // --- Surprised / Shocked (3) ---
+  pikachu:      "memes/surprised_pikachu.png",   // Surprised Pikachu
+  shocked:      "memes/shocked_guy.jpg",         // Shocked black guy (WAIT WHAT)
+  mindblown:    "memes/expanding_brain.jpg",     // Expanding Brain (galaxy brain moment)
+
+  // --- Angry / Frustrated (3) ---
+  this_is_fine: "memes/this_is_fine.jpg",        // This Is Fine (everything burns)
+  disaster:     "memes/disaster_girl.png",        // Disaster Girl (I caused chaos)
+  staring:      "memes/staring_guy.jpg",         // Staring Avatar Guy (bro...)
+
+  // --- Sad / Crying (3) ---
+  crying_jordan:"memes/crying_jordan.jpg",       // Crying Michael Jordan
+  cry_cat:      "memes/cry_cat.jpg",             // Thumbs up crying cat
+  sad_stare:    "memes/bald_guy_stare.jpg",      // Bald Guy Staring (disappointed)
+
+  // --- Thinking / Confused (3) ---
+  roll_safe:    "memes/roll_safe.jpg",           // Roll Safe (can't fail if you don't try)
+  change_mind:  "memes/change_my_mind.jpg",      // Change My Mind (prove me wrong)
+  shrug:        "memes/shrug.jpg",               // Kevin James shrug
+
+  // --- Disgust / Disapproval (3) ---
+  disgust:      "memes/disgusted_homelander.jpg",// Disgusted Homelander (ew)
+  judging:      "memes/bald_guy_stare.jpg",      // Bald Guy Staring (I'm judging you)
+  mother_ignore:"memes/mother_ignoring.jpg",     // Mother ignoring kid (I don't care)
+
+  // --- Flirty / Attraction (2) ---
+  distracted:   "memes/distracted_boyfriend.jpg",// Distracted Boyfriend (damn...)
+  heart_eyes:   "memes/girl_explaining.jpg",     // Girl explaining (intense eye contact)
+
+  // --- Tired / Done (2) ---
+  exhausted:    "memes/this_is_fine.jpg",        // This Is Fine (I'm so done)
+  hiding:       "memes/this_is_fine.jpg",        // This Is Fine (hiding from problems)
+
+  // --- Drama / Relationship (2) ---
+  explaining:   "memes/girl_explaining.jpg",     // Girl Explaining (let me explain...)
+  expanding:    "memes/expanding_brain.jpg",     // Expanding Brain (overthinking)
+
+  // --- Shade / Tea (2) ---
+  kermit_tea:   "memes/kermit_tea.jpg",          // Kermit sipping tea (that's none of my business)
+  smug_shade:   "memes/smug_wonka.jpg",          // Smug Wonka (tell me more...)
+
+  // --- Chaos / Wild (1) ---
+  elmo_chaos:   "memes/elmo_coke.jpg",           // Elmo choosing chaos (let's gooo)
 };
 
 const STICKER_NAMES = Object.keys(STICKER_LIBRARY);
 const STICKER_LABELS = {
-  laugh_cry:"笑哭", laughing:"爆笑", giggity:"嘿嘿", laughing_man:"笑死",
-  smirk:"坏笑", smug_dog:"得意狗", trollface:"整蛊", cool_doge:"酷狗",
-  pikachu:"震惊皮卡丘", shocked:"震惊", mindblown:"炸脑", ohmysoul:"点醒",
-  angry_arthur:"亚瑟拳", table_flip:"掀桌", angry_woman:"怒怼", this_is_fine:"没事",
-  crying_jordan:"哭泣乔丹", sad_pablo:"伤心巴勃罗", cry_cat:"哭哭猫", disappointed:"失望",
-  thinking:"思考", confused:"迷惑", calculate:"计算中", but_why:"但为什么",
-  disgust:"恶心", ew_brother:"恶兄弟", judging:"审判", not_bad:"还不错",
-  heart_eyes:"爱心眼", thumbs_up:"赞", fist_bump:"碰拳", you_can_do_it:"加油",
-  exhausted:"累瘫", done:"受够了", sleeping:"睡着", facepalm_pic:"捂脸",
-  drake_like:"Drake赞", drake_nah:"Drake拒",
-  distracted:"分心男友", two_buttons:"两难选择", change_mind:"改变我想法", expanding:"大脑升级",
-  deal_with_it:"戴上墨镜", flex:"秀肌肉", boss:"大佬", winning:"赢麻了",
-  hungry:"饿了", popcorn_gif:"吃瓜", chef_kiss:"美味",
-  party_time:"开趴", celebrate:"庆祝",
-  awkward:"尴尬", nervous:"紧张", hiding:"躲起来",
-  sassy:"泼辣", side_eye:"斜眼", eye_roll:"翻白眼",
+  laugh_cry:"笑死", point_laugh:"指着笑", giggle:"嘿嘿",
+  smirk:"坏笑", scumbag:"渣男", boss_move:"我全都要",
+  pikachu:"震惊皮卡丘", shocked:"震惊", mindblown:"大脑升级",
+  this_is_fine:"一切都好", disaster:"灾难女孩", staring:"盯着你",
+  crying_jordan:"哭泣乔丹", cry_cat:"哭哭猫", sad_stare:"失望凝视",
+  roll_safe:"动动脑子", change_mind:"来辩论", shrug:"无所谓",
+  disgust:"恶心", judging:"审视你", mother_ignore:"不在乎",
+  distracted:"分心男友", heart_eyes:"眼神交流",
+  exhausted:"毁灭吧", hiding:"躲起来",
+  explaining:"听我解释", expanding:"思维升级",
+  kermit_tea:"吃瓜茶", smug_shade:"继续说",
+  elmo_chaos:"搞事情",
 };
 
 function toggleStickerPanel() {
@@ -1683,6 +1712,45 @@ function showToast(msg) {
 function toggleMic() {
   showToast('Voice messages coming soon!');
 }
+// ============================================================
+// PWA & SERVICE WORKER
+// ============================================================
+let swRegistration = null;
+
+async function registerSW() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    swRegistration = await navigator.serviceWorker.register('./sw.js');
+    console.log('SW registered:', swRegistration.scope);
+  } catch(e) {
+    console.log('SW registration failed:', e);
+  }
+}
+
+async function subscribeToPush() {
+  if (!swRegistration) {
+    showToast('Push not available - try refreshing');
+    return;
+  }
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      showToast('Notifications blocked');
+      return;
+    }
+    // Generate VAPID keys and subscribe
+    // For production: use a push service like OneSignal (free tier)
+    // For now: enable basic notification permission
+    localStorage.setItem('notifyDesktop', 'true');
+    showToast('Notifications enabled!');
+  } catch(e) {
+    showToast('Push setup failed');
+  }
+}
+
+// Register SW on load
+registerSW();
+
 // ============================================================
 // INIT
 // ============================================================
