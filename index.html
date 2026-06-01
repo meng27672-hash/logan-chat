@@ -1056,18 +1056,25 @@ async function callLoganAPI(userMessage) {
     })
   }).then(r => r.json());
 
-    // Edge Function call — passes session_id so Edge Function can find push subscription
+  // Edge Function call — passes session_id so Edge Function can find push subscription
+  let edgePromise = null;
+  if (config.edgeFunctionUrl) {
     edgePromise = fetch(config.edgeFunctionUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.supabaseKey}`
+        'Authorization': `Bearer ${config.supabaseKey || config.apiKey}`
       },
       body: JSON.stringify({
         message: userMessage,
         history: recentMessages.slice(-20),
         session_id: SESSION_ID
       })
+    }).then(r => r.json()).catch(e => {
+      console.warn('Edge Function call failed (non-critical):', e);
+      return null;
+    });
+  }
 
   // Wait for local API (primary)
   const data = await localPromise;
@@ -1079,21 +1086,16 @@ async function callLoganAPI(userMessage) {
   await addMessage('user', userMessage);
   await addMessage('assistant', reply);
 
-    // Collect Edge Function result (don't block — it's just for push notification)
-    if (edgePromise) {
-      edgePromise.then(async (efResponse) => {
-        try {
-          const efResult = await efResponse.json();
-          if (efResult && efResult.pushSent) {
-            console.log('Push notification sent via Edge Function');
-          }
-        } catch(e) {
-          console.warn('Edge Function response parse failed:', e);
-        }
-      }).catch(e => {
-        console.warn('Edge Function call failed (non-critical):', e);
-      });
-    }
+  // Collect Edge Function result (don't block — it's just for push notification)
+  if (edgePromise) {
+    edgePromise.then(efResult => {
+      if (efResult && efResult.pushSent) {
+        console.log('Push notification sent via Edge Function');
+      }
+    }).catch(e => {
+      console.warn('Edge Function response failed:', e);
+    });
+  }
 
   return reply;
 }
