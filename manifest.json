@@ -2,28 +2,28 @@
   "name": "John Logan",
   "short_name": "Logan",
   "description": "Chat with John Logan - Instagram DM style",
-  "start_url": "/logan-chat/",
-  "scope": "/logan-chat/",
-  "id": "/logan-chat/",
+  "start_url": "https://meng27672-hash.github.io/logan-chat/",
+  "scope": "https://meng27672-hash.github.io/logan-chat/",
+  "id": "https://meng27672-hash.github.io/logan-chat/",
   "display": "standalone",
   "background_color": "#1a1a2e",
   "theme_color": "#1a1a2e",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/logan-chat/icon-192.png",
+      "src": "https://meng27672-hash.github.io/logan-chat/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/logan-chat/icon-512.png",
+      "src": "https://meng27672-hash.github.io/logan-chat/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/logan-chat/icon.svg",
+      "src": "https://meng27672-hash.github.io/logan-chat/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
