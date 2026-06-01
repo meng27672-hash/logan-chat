@@ -879,6 +879,77 @@ inputEl.addEventListener('blur', () => {
 });
 
 // ============================================================
+// RESTORE CHAT HISTORY
+// ============================================================
+async function restoreChatHistory() {
+  let history = null;
+  // Try Supabase first
+  if (config.supabaseUrl && config.supabaseKey) {
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}&order=created_at.asc&limit=200&select=role,content`;
+    try {
+      const resp = await fetch(url, { headers: supabaseHeaders() });
+      if (resp.ok) {
+        const rows = await resp.json();
+        if (rows.length > 0) {
+          history = rows;
+          // Update badge with count
+          try {
+            const countUrl = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}&select=id`;
+            const r = await fetch(countUrl, {
+              headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' }
+            });
+            const count = r.headers.get('content-range')?.split('/')[1] || rows.length;
+            updateMemoryBadge(count, true);
+          } catch(e) { updateMemoryBadge(rows.length, true); }
+        }
+      }
+    } catch(e) { console.warn('Restore from Supabase failed:', e); }
+  }
+  // Fallback to local
+  if (!history) {
+    history = loadLocalMemory();
+    if (history.length > 0) updateMemoryBadge(history.length, false);
+  }
+  // Render
+  if (history && history.length > 0) {
+    // Remove default welcome message
+    const welcome = document.getElementById('welcomeMsg');
+    if (welcome) welcome.remove();
+    // Render all messages
+    for (const msg of history) {
+      const who = msg.role === 'user' ? 'user' : 'logan';
+      appendRestoredMessage(who, msg.content);
+    }
+  } else {
+    // Keep welcome message but update its time
+    const welcome = document.getElementById('welcomeMsg');
+    if (welcome) {
+      const timeEl = welcome.querySelector('.msg-time');
+      if (timeEl) timeEl.textContent = 'now';
+    }
+  }
+  scrollToBottom();
+}
+
+// appendRestoredMessage: like appendMessage but shows ✓✓ for user messages (already read)
+function appendRestoredMessage(who, text) {
+  const row = document.createElement('div');
+  row.className = `msg-row ${who}`;
+  // For restored messages, user messages show as already read (✓✓ blue)
+  const readHtml = who === 'user'
+    ? `<span class="read-status read">✓✓</span>`
+    : '';
+  row.innerHTML = `
+    <div class="msg-bubble-wrap">
+      ${who === 'logan' ? '<div class="avatar-small"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" stroke="#fff" stroke-width="2" fill="none"/><line x1="12" y1="4" x2="12" y2="8" stroke="#fff" stroke-width="2"/><line x1="12" y1="16" x2="12" y2="20" stroke="#fff" stroke-width="2"/><line x1="4" y1="12" x2="8" y2="12" stroke="#fff" stroke-width="2"/><line x1="16" y1="12" x2="20" y2="12" stroke="#fff" stroke-width="2"/></svg></div>' : ''}
+      <div class="msg-bubble">${escapeHtml(text)}</div>
+    </div>
+    <div class="msg-time">${readHtml}</div>
+  `;
+  messagesEl.appendChild(row);
+}
+
+// ============================================================
 // INIT
 // ============================================================
 (async () => {
@@ -886,21 +957,7 @@ inputEl.addEventListener('blur', () => {
     setTimeout(openSettings, 500);
   } else {
     document.getElementById('statusText').textContent = 'active now';
-    // update badge on load
-    if (config.supabaseUrl && config.supabaseKey) {
-      const h = await sbFetchHistory(1);
-      if (h !== null) {
-        // get count
-        try {
-          const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}&select=id`;
-          const r = await fetch(url, {
-            headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' }
-          });
-          const count = r.headers.get('content-range')?.split('/')[1] || '?';
-          updateMemoryBadge(count, true);
-        } catch(e) { updateMemoryBadge('?', true); }
-      }
-    }
+    await restoreChatHistory();
   }
 })();
 </script>
