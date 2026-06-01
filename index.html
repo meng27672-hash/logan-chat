@@ -476,7 +476,9 @@ const DEFAULT_CONFIG = {
   provider: 'deepseek',
   model: 'deepseek-chat',
   supabaseUrl: 'https://itqbuejzektzszwrnnlm.supabase.co',
-  supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0cWJ1ZWp6ZWt0enN6d3JubmxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MzA4NjUsImV4cCI6MjA2NDMwNjg2NX0.tFqIsAS_jFJW6hUvybCJAv0NqXqR2XO3LxPcQNRHXPY'
+  supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0cWJ1ZWp6ZWt0enN6d3JubmxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MzA4NjUsImV4cCI6MjA2NDMwNjg2NX0.tFqIsAS_jFJW6hUvybCJAv0NqXqR2XO3LxPcQNRHXPY',
+  edgeFunctionUrl: 'https://itqbuejzektzszwrnnlm.supabase.co/functions/v1/logan-reply',
+  vapidPublicKey: 'BAflQS5UgoB_LIrXy6_EzvQIJtChg_5-EkOhpouPa47hyPQUVPiXQfD-IIZJAhCASOJVy4ES95Bh_bB_DkxYGAw'
 };
 
 function loadConfig() {
@@ -1039,7 +1041,8 @@ async function callLoganAPI(userMessage) {
     { role: 'user', content: userMessage }
   ];
 
-  const resp = await fetch(apiUrl, {
+  // ── Parallel: local API (fast) + Edge Function (for push notification) ──
+  const localPromise = fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1051,9 +1054,30 @@ async function callLoganAPI(userMessage) {
       temperature: 0.85,
       max_tokens: 200
     })
-  });
+  }).then(r => r.json());
 
-  const data = await resp.json();
+  // Edge Function call — don't block on it, fire and collect later
+  let edgePromise = null;
+  if (pushSubscription && config.edgeFunctionUrl) {
+    edgePromise = fetch(config.edgeFunctionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.supabaseKey}`
+      },
+      body: JSON.stringify({
+        message: userMessage,
+        history: recentMessages.slice(-20),
+        pushSubscription: pushSubscription
+      })
+    }).then(r => r.json()).catch(e => {
+      console.warn('Edge Function call failed (non-critical):', e);
+      return null;
+    });
+  }
+
+  // Wait for local API (primary)
+  const data = await localPromise;
   if (data.error) throw new Error(data.error.message || 'API error');
 
   const reply = data.choices?.[0]?.message?.content?.trim() || '...';
@@ -1061,6 +1085,15 @@ async function callLoganAPI(userMessage) {
   // Save exchange to memory
   await addMessage('user', userMessage);
   await addMessage('assistant', reply);
+
+  // Collect Edge Function result (don't block — it's just for push notification)
+  if (edgePromise) {
+    edgePromise.then(efResult => {
+      if (efResult && efResult.pushSent) {
+        console.log('Push notification sent via Edge Function');
+      }
+    });
+  }
 
   return reply;
 }
@@ -1503,9 +1536,15 @@ function saveNotifySettings() {
   const desktop = document.getElementById('desktopNotifyToggle').checked;
   localStorage.setItem('notifySound', sound);
   localStorage.setItem('notifyDesktop', desktop);
-  // Request notification permission when user enables desktop notifications
+  // Request notification permission and subscribe to push when user enables
   if (desktop && 'Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
+    Notification.requestPermission().then(perm => {
+      if (perm === 'granted' && swRegistration) {
+        subscribeToPush();
+      }
+    });
+  } else if (desktop && Notification.permission === 'granted' && swRegistration && !pushSubscription) {
+    subscribeToPush();
   }
 }
 
@@ -2021,38 +2060,89 @@ function toggleMic() {
   showToast('Voice messages coming soon!');
 }
 // ============================================================
-// PWA & SERVICE WORKER
+// PWA & SERVICE WORKER + PUSH SUBSCRIPTION
 // ============================================================
 let swRegistration = null;
+let pushSubscription = null;
 
 async function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   try {
     swRegistration = await navigator.serviceWorker.register('/logan-chat/sw.js');
     console.log('SW registered:', swRegistration.scope);
+    
+    // After SW registered, subscribe to push if notifications enabled
+    if (localStorage.getItem('notifyDesktop') === 'true') {
+      await subscribeToPush();
+    }
   } catch(e) {
     console.log('SW registration failed:', e);
   }
 }
 
 async function subscribeToPush() {
-  if (!swRegistration) {
-    showToast('Push not available - try refreshing');
+  if (!swRegistration || !('PushManager' in window)) {
+    console.log('Push not supported');
     return;
   }
+  
   try {
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      showToast('Notifications blocked');
-      return;
+    // Check existing subscription
+    let sub = await swRegistration.pushManager.getSubscription();
+    
+    if (!sub) {
+      // Request permission first
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        console.log('Notification permission denied');
+        return;
+      }
+      
+      const vapidKey = config.vapidPublicKey || DEFAULT_CONFIG.vapidPublicKey;
+      sub = await swRegistration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey)
+      });
     }
-    // Generate VAPID keys and subscribe
-    // For production: use a push service like OneSignal (free tier)
-    // For now: enable basic notification permission
-    localStorage.setItem('notifyDesktop', 'true');
-    showToast('Notifications enabled!');
+    
+    pushSubscription = sub.toJSON();
+    console.log('Push subscribed:', pushSubscription.endpoint.substring(0, 60) + '...');
+    
+    // Save subscription to Supabase for Edge Function to use
+    await savePushSubscription(pushSubscription);
+    
+    // Also store locally
+    localStorage.setItem('push_subscription', JSON.stringify(pushSubscription));
   } catch(e) {
-    showToast('Push setup failed');
+    console.warn('Push subscription failed:', e);
+  }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function savePushSubscription(sub) {
+  if (!config.supabaseUrl || !config.supabaseKey) return;
+  try {
+    await fetch(`${config.supabaseUrl}/rest/v1/push_subscriptions`, {
+      method: 'POST',
+      headers: supabaseHeaders(),
+      body: JSON.stringify({
+        session_id: SESSION_ID,
+        subscription: sub,
+        updated_at: new Date().toISOString()
+      })
+    });
+  } catch(e) {
+    console.warn('Save push subscription failed:', e);
   }
 }
 
