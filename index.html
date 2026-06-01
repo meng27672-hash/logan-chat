@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Logan">
 <meta name="theme-color" content="#000000">
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="/logan-chat/manifest.json">
 <title>John Logan</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -1720,7 +1720,7 @@ let swRegistration = null;
 async function registerSW() {
   if (!('serviceWorker' in navigator)) return;
   try {
-    swRegistration = await navigator.serviceWorker.register('./sw.js');
+    swRegistration = await navigator.serviceWorker.register('/logan-chat/sw.js');
     console.log('SW registered:', swRegistration.scope);
   } catch(e) {
     console.log('SW registration failed:', e);
