@@ -45,6 +45,8 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 .avatar-small{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:none;background:linear-gradient(135deg,#7C3AED,#5B21B6);align-items:center;justify-content:center;overflow:hidden}
 .avatar-small img{width:100%;height:100%;border-radius:50%;object-fit:cover}
 .msg-row.logan .avatar-small{display:flex}
+.msg-row.user .avatar-small.user-avatar{display:flex}
+.msg-row.user .msg-bubble-wrap{flex-direction:row}
 
 .msg-bubble{padding:9px 14px;border-radius:19px;font-size:15.5px;line-height:1.37;word-wrap:break-word;position:relative}
 .msg-row.user .msg-bubble{background:linear-gradient(135deg,#7C3AED,#6D28D9);color:#fff;border-bottom-right-radius:6px}
@@ -76,8 +78,25 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 /* Settings overlay */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:100;justify-content:center;align-items:center}
 .overlay.show{display:flex}
-.settings-panel{background:#1C1C1E;width:88%;max-width:360px;border-radius:20px;padding:24px 20px;display:flex;flex-direction:column;gap:14px;max-height:90vh;overflow-y:auto}
-.settings-panel h3{font-size:17px;font-weight:600;text-align:center;margin-bottom:4px}
+.settings-panel{background:#1C1C1E;width:88%;max-width:360px;border-radius:20px;display:flex;flex-direction:column;max-height:85vh;overflow:hidden}
+.settings-menu,.settings-sub{display:flex;flex-direction:column;max-height:85vh}
+.settings-sub{display:none}
+.settings-sub.active{display:flex}
+.settings-header{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px;border-bottom:0.5px solid #2C2C2E;flex-shrink:0}
+.settings-back,.settings-close{background:none;border:none;color:#0095F6;cursor:pointer;font-size:14px;padding:4px;display:flex;align-items:center}
+.settings-back svg{width:20px;height:20px;stroke:#0095F6;fill:none;stroke-width:2.5}
+.settings-title{font-size:17px;font-weight:600;color:#fff}
+.settings-list{flex:1;overflow-y:auto;padding:4px 0}
+.settings-item{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;transition:background 0.15s}
+.settings-item:active{background:#2C2C2E}
+.settings-item-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.settings-item-text{flex:1}
+.settings-item-label{font-size:15px;color:#fff;font-weight:500}
+.settings-item-desc{font-size:12px;color:#8E8E93;margin-top:1px}
+.settings-sub-content{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.settings-footer{padding:12px 16px;border-top:0.5px solid #2C2C2E;flex-shrink:0}
+.settings-danger-btn{width:100%;padding:11px;border-radius:12px;border:none;background:#2C2C2E;color:#FF453A;font-size:14px;cursor:pointer}
+.settings-danger-btn:active{opacity:0.8}
 .settings-section-title{font-size:12px;color:#8E8E93;letter-spacing:0.5px;text-transform:uppercase;margin-top:4px;padding-left:2px}
 .setting-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .setting-row label{font-size:14px;color:#8E8E93;flex-shrink:0}
@@ -89,6 +108,34 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 .status-msg.ok{color:#4ADE80}
 .status-msg.err{color:#FF453A}
 .memory-badge{font-size:11px;color:#A855F7;text-align:center;padding:4px 0}
+/* Avatar sub-panel */
+.avatar-preview-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 0}
+.avatar-preview{width:80px;height:80px;border-radius:50%;overflow:hidden;background:#2C2C2E;display:flex;align-items:center;justify-content:center}
+.avatar-preview img{width:100%;height:100%;object-fit:cover}
+.avatar-preview-label{font-size:13px;color:#8E8E93}
+/* Search */
+.search-input{width:100%;background:#2C2C2E;border:none;border-radius:12px;padding:10px 14px;color:#EDEDED;font-size:15px;outline:none}
+.search-results{display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto}
+.search-result{padding:10px 12px;background:#2C2C2E;border-radius:10px;cursor:pointer}
+.search-result .sr-text{font-size:14px;color:#EDEDED;margin-bottom:3px}
+.search-result .sr-meta{font-size:11px;color:#8E8E93}
+/* Wallpaper */
+.wallpaper-grid{display:flex;flex-wrap:wrap;gap:8px}
+.wallpaper-option{width:calc(50% - 4px);height:80px;border-radius:12px;cursor:pointer;display:flex;align-items:flex-end;padding:8px;position:relative;overflow:hidden}
+.wallpaper-option span{font-size:11px;color:#fff;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,0.5)}
+.wallpaper-option.active{border:2px solid #0095F6}
+.wallpaper-option.active::after{content:'✓';position:absolute;top:6px;right:10px;color:#0095F6;font-weight:bold;font-size:14px}
+/* Toggle */
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:0.5px solid #2C2C2E}
+.toggle-label{flex:1}
+.toggle-label div:first-child{font-size:15px;color:#fff}
+.toggle-desc{font-size:12px;color:#8E8E93;margin-top:2px}
+.toggle-switch{position:relative;display:inline-block;width:50px;height:28px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:#3C3C3E;border-radius:14px;transition:0.3s}
+.toggle-slider::before{content:'';position:absolute;height:22px;width:22px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:0.3s}
+.toggle-switch input:checked+.toggle-slider{background:#34C759}
+.toggle-switch input:checked+.toggle-slider::before{transform:translateX(22px)}
 
 /* Song card */
 .song-card{display:flex;align-items:center;gap:10px;background:#1C1C1E;border-radius:12px;padding:10px;margin:4px 0;cursor:pointer;transition:background 0.2s}
@@ -103,14 +150,18 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 
 
 /* Sticker panel */
-.sticker-panel{display:none;background:#1C1C1E;border-top:0.5px solid #2C2C2E;padding:10px;max-height:200px;overflow-y:auto;flex-shrink:0}
+.sticker-panel{display:none;background:#1C1C1E;border-top:0.5px solid #2C2C2E;padding:8px 6px;max-height:280px;overflow-y:auto;flex-shrink:0}
 .sticker-panel.open{display:block}
-.sticker-grid{display:flex;flex-wrap:wrap;gap:8px}
-.sticker-item{width:calc(25% - 6px);aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;background:#2C2C2E;display:flex;align-items:center;justify-content:center}
-.sticker-item img{width:100%;height:100%;object-fit:cover}
-.sticker-item:active{opacity:0.7}
+.sticker-grid{display:flex;flex-wrap:wrap;gap:6px}
+.sticker-item{width:calc(20% - 5px);aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;background:#2C2C2E;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;gap:2px}
+.sticker-item:active{opacity:0.7;background:#3C3C3E}
+.sticker-svg{width:48px;height:48px;display:flex;align-items:center;justify-content:center}
+.sticker-svg svg{width:100%;height:100%}
+.sticker-label{font-size:10px;color:#8E8E93;text-align:center;line-height:1}
 .sticker-msg{display:inline-block;margin:2px 0}
-.sticker-msg img{max-width:160px;border-radius:10px;display:block}
+.sticker-msg .sticker-svg{width:100px;height:100px}
+.sticker-msg .sticker-svg.sent svg{filter:drop-shadow(0 2px 4px rgba(124,58,237,0.4))}
+.sticker-msg .sticker-svg.received svg{filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))}
 /* Sticker toggle button */
 .sticker-toggle{background:none;border:none;color:#fff;cursor:pointer;padding:4px;opacity:0.9;display:flex;align-items:center;justify-content:center;font-size:20px}
 .sticker-toggle svg{width:22px;height:22px;fill:#fff}
@@ -173,52 +224,196 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 
 <!-- Settings Overlay -->
 <div class="overlay" id="settingsOverlay">
-  <div class="settings-panel">
-    <h3>Settings</h3>
+  <div class="settings-panel" id="settingsPanel">
+    <!-- Main Menu -->
+    <div class="settings-menu" id="settingsMenu">
+      <div class="settings-header">
+        <button class="settings-back" onclick="closeSettings()" style="visibility:hidden"><svg viewBox="0 0 24 24"><polyline points="15 4 7 12 15 20"/></svg></button>
+        <span class="settings-title">Settings</span>
+        <button class="settings-close" onclick="closeSettings()">Done</button>
+      </div>
+      <div class="settings-list">
+        <div class="settings-item" onclick="openSubPanel('avatar')">
+          <div class="settings-item-icon" style="background:#7C3AED">👤</div>
+          <div class="settings-item-text">
+            <div class="settings-item-label">Change My Avatar</div>
+            <div class="settings-item-desc">Set your profile picture</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="16" height="16"><polyline points="9 4 17 12 9 20" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="settings-item" onclick="openSubPanel('search')">
+          <div class="settings-item-icon" style="background:#0095F6">🔍</div>
+          <div class="settings-item-text">
+            <div class="settings-item-label">Search Chat History</div>
+            <div class="settings-item-desc">Find messages and conversations</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="16" height="16"><polyline points="9 4 17 12 9 20" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="settings-item" onclick="openSubPanel('wallpaper')">
+          <div class="settings-item-icon" style="background:#FF6B6B">🎨</div>
+          <div class="settings-item-text">
+            <div class="settings-item-label">Change Wallpaper</div>
+            <div class="settings-item-desc">Customize chat background</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="16" height="16"><polyline points="9 4 17 12 9 20" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="settings-item" onclick="openSubPanel('notifications')">
+          <div class="settings-item-icon" style="background:#4CAF50">🔔</div>
+          <div class="settings-item-text">
+            <div class="settings-item-label">Notifications</div>
+            <div class="settings-item-desc">Message alerts and sounds</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="16" height="16"><polyline points="9 4 17 12 9 20" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="settings-item" onclick="openSubPanel('ai')">
+          <div class="settings-item-icon" style="background:#A855F7">⚙️</div>
+          <div class="settings-item-text">
+            <div class="settings-item-label">AI & Memory Config</div>
+            <div class="settings-item-desc">API, model, Supabase settings</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="16" height="16"><polyline points="9 4 17 12 9 20" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+      <div class="settings-footer">
+        <button class="settings-danger-btn" onclick="resetMemory()">🗑️ Clear All Memory</button>
+      </div>
+    </div>
 
-    <div class="settings-section-title">AI Config</div>
-    <div class="setting-row">
-      <label>API Key</label>
-      <input type="password" id="apiKeyInput" placeholder="sk-...">
-    </div>
-    <div class="setting-row">
-      <label>Model</label>
-      <select id="modelSelect">
-        <option value="deepseek-chat">DeepSeek-V3</option>
-        <option value="deepseek-reasoner">DeepSeek-R1</option>
-        <option value="gpt-4o-mini">GPT-4o Mini</option>
-        <option value="gpt-4o">GPT-4o</option>
-      </select>
-    </div>
-    <div class="setting-row">
-      <label>Endpoint</label>
-      <select id="providerSelect" onchange="toggleCustomUrl()">
-        <option value="deepseek">DeepSeek</option>
-        <option value="openai">OpenAI</option>
-        <option value="custom">Custom...</option>
-      </select>
-    </div>
-    <div class="setting-row" id="customUrlRow" style="display:none">
-      <label>URL</label>
-      <input type="text" id="customUrlInput" placeholder="https://...">
+    <!-- Sub Panel: Avatar -->
+    <div class="settings-sub" id="subPanelAvatar">
+      <div class="settings-header">
+        <button class="settings-back" onclick="backToMenu()"><svg viewBox="0 0 24 24"><polyline points="15 4 7 12 15 20"/></svg></button>
+        <span class="settings-title">My Avatar</span>
+        <span></span>
+      </div>
+      <div class="settings-sub-content">
+        <div class="avatar-preview-wrap">
+          <div class="avatar-preview" id="userAvatarPreview">
+            <svg viewBox="0 0 64 64" width="64" height="64"><circle cx="32" cy="24" r="14" fill="#7C3AED"/><ellipse cx="32" cy="56" rx="20" ry="14" fill="#7C3AED"/></svg>
+          </div>
+          <div class="avatar-preview-label">Your Avatar</div>
+        </div>
+        <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)">
+        <button class="btn-save" onclick="document.getElementById('avatarFileInput').click()">Choose Photo</button>
+        <button class="btn-save" style="background:#2C2C2E;color:#FF453A;margin-top:8px" onclick="removeAvatar()">Remove Avatar</button>
+      </div>
     </div>
 
-    <div class="settings-section-title">Memory (Supabase)</div>
-    <div class="setting-row">
-      <label>Project URL</label>
-      <input type="text" id="supabaseUrlInput" placeholder="https://xxx.supabase.co">
+    <!-- Sub Panel: Search -->
+    <div class="settings-sub" id="subPanelSearch">
+      <div class="settings-header">
+        <button class="settings-back" onclick="backToMenu()"><svg viewBox="0 0 24 24"><polyline points="15 4 7 12 15 20"/></svg></button>
+        <span class="settings-title">Search</span>
+        <span></span>
+      </div>
+      <div class="settings-sub-content">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search messages..." oninput="searchMessages()">
+        <div class="search-results" id="searchResults"></div>
+      </div>
     </div>
-    <div class="setting-row">
-      <label>Anon Key</label>
-      <input type="password" id="supabaseKeyInput" placeholder="sb_publishable_...">
-    </div>
-    <div class="memory-badge" id="memoryBadge" style="color:#8E8E93">Not configured</div>
 
-    <div class="status-msg" id="statusMsg"></div>
-    <button class="btn-save" onclick="saveSettings()">Save & Connect</button>
-    <button class="btn-save" style="background:#2C2C2E;color:#FF453A;margin-top:0" onclick="resetMemory()">
-      <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#FF453A;display:inline-block;vertical-align:middle;margin-right:4px"><path d="M3 6h18v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6z M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2 M10 11v6 M14 11v6"/></svg>Clear All Memory</button>
-    <button class="btn-save" style="background:#2C2C2E;color:#8E8E93;margin-top:0" onclick="closeSettings()">Cancel</button>
+    <!-- Sub Panel: Wallpaper -->
+    <div class="settings-sub" id="subPanelWallpaper">
+      <div class="settings-header">
+        <button class="settings-back" onclick="backToMenu()"><svg viewBox="0 0 24 24"><polyline points="15 4 7 12 15 20"/></svg></button>
+        <span class="settings-title">Wallpaper</span>
+        <span></span>
+      </div>
+      <div class="settings-sub-content">
+        <div class="wallpaper-grid" id="wallpaperGrid">
+          <div class="wallpaper-option active" onclick="setWallpaper('default')" style="background:#000"><span>Default</span></div>
+          <div class="wallpaper-option" onclick="setWallpaper('dark')" style="background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)"><span>Midnight</span></div>
+          <div class="wallpaper-option" onclick="setWallpaper('sunset')" style="background:linear-gradient(135deg,#ff6b6b,#feca57,#ff9ff3)"><span>Sunset</span></div>
+          <div class="wallpaper-option" onclick="setWallpaper('ocean')" style="background:linear-gradient(135deg,#0abde3,#48dbfb,#c7ecee)"><span>Ocean</span></div>
+          <div class="wallpaper-option" onclick="setWallpaper('forest')" style="background:linear-gradient(135deg,#2d3436,#636e72,#b2bec3)"><span>Forest</span></div>
+          <div class="wallpaper-option" onclick="setWallpaper('purple')" style="background:linear-gradient(135deg,#6c5ce7,#a29bfe,#dfe6e9)"><span>Purple</span></div>
+          <div class="wallpaper-option" onclick="setWallpaper('rose')" style="background:linear-gradient(135deg,#e84393,#fd79a8,#fab1a0)"><span>Rose</span></div>
+          <div class="wallpaper-option" onclick="setWallpaper('gold')" style="background:linear-gradient(135deg,#fdcb6e,#e17055,#d63031)"><span>Gold</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sub Panel: Notifications -->
+    <div class="settings-sub" id="subPanelNotifications">
+      <div class="settings-header">
+        <button class="settings-back" onclick="backToMenu()"><svg viewBox="0 0 24 24"><polyline points="15 4 7 12 15 20"/></svg></button>
+        <span class="settings-title">Notifications</span>
+        <span></span>
+      </div>
+      <div class="settings-sub-content">
+        <div class="toggle-row">
+          <div class="toggle-label">
+            <div>Message Sound</div>
+            <div class="toggle-desc">Play a sound when Logan replies</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="soundToggle" onchange="saveNotifySettings()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-label">
+            <div>Desktop Notifications</div>
+            <div class="toggle-desc">Show browser notification for new messages</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="desktopNotifyToggle" onchange="saveNotifySettings()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sub Panel: AI Config -->
+    <div class="settings-sub" id="subPanelAI">
+      <div class="settings-header">
+        <button class="settings-back" onclick="backToMenu()"><svg viewBox="0 0 24 24"><polyline points="15 4 7 12 15 20"/></svg></button>
+        <span class="settings-title">AI & Memory</span>
+        <span></span>
+      </div>
+      <div class="settings-sub-content">
+        <div class="settings-section-title">AI Config</div>
+        <div class="setting-row">
+          <label>API Key</label>
+          <input type="password" id="apiKeyInput" placeholder="sk-...">
+        </div>
+        <div class="setting-row">
+          <label>Model</label>
+          <select id="modelSelect">
+            <option value="deepseek-chat">DeepSeek-V3</option>
+            <option value="deepseek-reasoner">DeepSeek-R1</option>
+            <option value="gpt-4o-mini">GPT-4o Mini</option>
+            <option value="gpt-4o">GPT-4o</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <label>Endpoint</label>
+          <select id="providerSelect" onchange="toggleCustomUrl()">
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai">OpenAI</option>
+            <option value="custom">Custom...</option>
+          </select>
+        </div>
+        <div class="setting-row" id="customUrlRow" style="display:none">
+          <label>URL</label>
+          <input type="text" id="customUrlInput" placeholder="https://...">
+        </div>
+
+        <div class="settings-section-title">Memory (Supabase)</div>
+        <div class="setting-row">
+          <label>Project URL</label>
+          <input type="text" id="supabaseUrlInput" placeholder="https://xxx.supabase.co">
+        </div>
+        <div class="setting-row">
+          <label>Anon Key</label>
+          <input type="password" id="supabaseKeyInput" placeholder="sb_publishable_...">
+        </div>
+        <div class="memory-badge" id="memoryBadge" style="color:#8E8E93">Not configured</div>
+
+        <div class="status-msg" id="statusMsg"></div>
+        <button class="btn-save" onclick="saveSettings()">Save & Connect</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -547,7 +742,15 @@ MUSIC: You love 2000s pop-punk, rock, hip-hop, and pop. Share songs naturally us
 
 YOUR PLAYLIST: Fall Out Boy - Sugar We're Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside | The All-American Rejects - Dirty Little Secret | Panic! At The Disco - I Write Sins Not Tragedies | Kanye West - Stronger | The Weeknd - Blinding Lights | Harry Styles - As It Was | Olivia Rodrigo - good 4 u | Post Malone - Sunflower | Miley Cyrus - Flowers | Sam Smith - Unholy | Post Malone - Circles | Steve Lacy - Bad Habit
 
-STICKERS: You can use [sticker:NAME] to send GIFs. Available: eyeroll, smirk, laugh, shrug, wink, facepalm, thumbsup, cool, excited, thinking, love. Use max once per 10-15 messages.`;
+STICKER GUIDE: You can use [sticker:NAME] to send emoji stickers that match your tone. Available stickers by mood:
+- happy/amused: laugh, lol, smirk, wink, shy, smug
+- impressed/supportive: thumbsup, ok, heart, handshake, fistbump
+- sad/frustrated: cry, wronged, speechless, eyeroll, sigh, sweat
+- tired/annoyed: sleep, tired, facepalm, dizzy
+- angry/surprised: angry, surprised, cool
+- celebrating: confetti, party, cheers, birthday
+- thinking/observing: thinking, popcorn
+Rules: Use stickers sparingly (every 5-8 messages max). Only ONE sticker per reply. Choose the sticker that BEST matches your emotional tone — don't just use them randomly.`;
 
 // ============================================================
 // API CALL
@@ -737,9 +940,17 @@ function appendMessage(who, text) {
     ? `<span class="read-status" data-read="sent">✓</span>`
     : '';
 
+  const userAvatarSrc = (who === 'user' && localStorage.getItem('userAvatar')) ? localStorage.getItem('userAvatar') : '';
+  const loganAvatar = who === 'logan' ? AVATARS[currentAvatarIdx] : '';
+  const avatarHtml = who === 'logan'
+    ? `<div class="avatar-small"><img src="${loganAvatar}" alt="" class="chat-avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>`
+    : (userAvatarSrc
+      ? `<div class="avatar-small user-avatar"><img src="${userAvatarSrc}" alt="" class="user-avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>`
+      : '');
+
   row.innerHTML = `
     <div class="msg-bubble-wrap">
-      ${who === 'logan' ? `<div class="avatar-small"><img src="${AVATARS[currentAvatarIdx]}" alt="" class="chat-avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>` : ''}
+      ${avatarHtml}
       <div class="msg-bubble">${formatMessageContent(text)}</div>
     </div>
     <div class="msg-time">${time}${readHtml}</div>
@@ -770,22 +981,39 @@ function openSettings() {
   document.getElementById('supabaseUrlInput').value = config.supabaseUrl || '';
   document.getElementById('supabaseKeyInput').value = config.supabaseKey ? '••••••••••••' : '';
   toggleCustomUrl();
-  // refresh badge
   if (config.supabaseUrl && config.supabaseKey) {
     sbFetchHistory(1).then(h => {
       if (h !== null) updateMemoryBadge('?', true);
     });
   }
+  // Reset to main menu
+  backToMenu();
+  // Load notify settings
+  loadNotifySettings();
   document.getElementById('settingsOverlay').classList.add('show');
 }
 
 function closeSettings() {
   document.getElementById('settingsOverlay').classList.remove('show');
+  // Reset all sub panels
+  document.querySelectorAll('.settings-sub').forEach(s => s.classList.remove('active'));
+  document.getElementById('settingsMenu').style.display = '';
+}
+
+function backToMenu() {
+  document.querySelectorAll('.settings-sub').forEach(s => s.classList.remove('active'));
+  document.getElementById('settingsMenu').style.display = '';
+}
+
+function openSubPanel(name) {
+  document.getElementById('settingsMenu').style.display = 'none';
+  const panel = document.getElementById('subPanel' + name.charAt(0).toUpperCase() + name.slice(1));
+  if (panel) panel.classList.add('active');
 }
 
 function toggleCustomUrl() {
   const row = document.getElementById('customUrlRow');
-  row.style.display = document.getElementById('providerSelect').value === 'custom' ? 'flex' : 'none';
+  if (row) row.style.display = document.getElementById('providerSelect').value === 'custom' ? 'flex' : 'none';
 }
 
 async function saveSettings() {
@@ -798,17 +1026,11 @@ async function saveSettings() {
   const msgEl       = document.getElementById('statusMsg');
 
   const newConfig = { provider, model };
-
-  // API key
   if (apiKey && !apiKey.includes('•')) newConfig.apiKey = apiKey;
   else newConfig.apiKey = config.apiKey;
-
   if (provider === 'custom') newConfig.customUrl = customUrl;
-
-  // Supabase
   if (sbUrl) newConfig.supabaseUrl = sbUrl;
   else newConfig.supabaseUrl = config.supabaseUrl;
-
   if (sbKey && !sbKey.includes('•')) newConfig.supabaseKey = sbKey;
   else newConfig.supabaseKey = config.supabaseKey;
 
@@ -820,37 +1042,24 @@ async function saveSettings() {
 
   config = { ...config, ...newConfig };
   saveConfig(config);
-
   msgEl.textContent = 'Testing connection...';
   msgEl.className = 'status-msg';
 
   try {
-    // Test AI
     const provider2 = config.provider || 'deepseek';
     let testUrl = provider2 === 'openai' ? 'https://api.openai.com/v1/chat/completions'
                 : provider2 === 'custom'  ? (config.customUrl || 'https://api.deepseek.com/chat/completions')
                 : 'https://api.deepseek.com/chat/completions';
-
     const testResp = await fetch(testUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.apiKey}` },
-      body: JSON.stringify({
-        model: config.model || 'deepseek-chat',
-        messages: [{ role: 'user', content: 'hi' }],
-        max_tokens: 5
-      })
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + config.apiKey },
+      body: JSON.stringify({ model: config.model || 'deepseek-chat', messages: [{ role: 'user', content: 'hi' }], max_tokens: 5 })
     });
     const testData = await testResp.json();
     if (testData.error) throw new Error(testData.error.message);
-
-    // Test Supabase if configured
     if (config.supabaseUrl && config.supabaseKey) {
       const sbTest = await sbFetchHistory(1);
-      if (sbTest !== null) {
-        msgEl.textContent = '✓ AI + Supabase connected!';
-      } else {
-        msgEl.textContent = '✓ AI connected. Supabase: check URL/key';
-      }
+      msgEl.textContent = sbTest !== null ? '✓ AI + Supabase connected!' : '✓ AI connected. Supabase: check URL/key';
     } else {
       msgEl.textContent = '✓ Connected! (local memory only)';
     }
@@ -865,9 +1074,137 @@ async function saveSettings() {
 async function resetMemory() {
   clearLocalMemory();
   await sbClearHistory();
-  document.getElementById('statusMsg').textContent = 'Memory cleared!';
-  document.getElementById('statusMsg').className = 'status-msg ok';
+  const msgEl = document.getElementById('statusMsg');
+  if (msgEl) { msgEl.textContent = 'Memory cleared!'; msgEl.className = 'status-msg ok'; }
   updateMemoryBadge(0, !!config.supabaseKey);
+  setTimeout(closeSettings, 1000);
+}
+
+// ============================================================
+// USER AVATAR
+// ============================================================
+function handleAvatarUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64 = e.target.result;
+    localStorage.setItem('userAvatar', base64);
+    updateUserAvatar(base64);
+  };
+  reader.readAsDataURL(file);
+}
+
+function updateUserAvatar(src) {
+  // Update preview in settings
+  const preview = document.getElementById('userAvatarPreview');
+  if (preview) {
+    preview.innerHTML = '<img src="' + src + '" style="width:100%;height:100%;object-fit:cover">';
+  }
+  // Update all user message avatars
+  document.querySelectorAll('.user-avatar-img').forEach(img => {
+    img.src = src;
+  });
+}
+
+function removeAvatar() {
+  localStorage.removeItem('userAvatar');
+  const preview = document.getElementById('userAvatarPreview');
+  if (preview) {
+    preview.innerHTML = '<svg viewBox="0 0 64 64" width="64" height="64"><circle cx="32" cy="24" r="14" fill="#7C3AED"/><ellipse cx="32" cy="56" rx="20" ry="14" fill="#7C3AED"/></svg>';
+  }
+  document.querySelectorAll('.user-avatar-img').forEach(img => {
+    img.src = '';
+  });
+}
+
+function loadUserAvatar() {
+  const saved = localStorage.getItem('userAvatar');
+  if (saved) {
+    updateUserAvatar(saved);
+  }
+}
+
+// ============================================================
+// WALLPAPER
+// ============================================================
+const WALLPAPERS = {
+  'default': '#000',
+  'dark': 'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)',
+  'sunset': 'linear-gradient(135deg,#ff6b6b,#feca57,#ff9ff3)',
+  'ocean': 'linear-gradient(135deg,#0abde3,#48dbfb,#c7ecee)',
+  'forest': 'linear-gradient(135deg,#2d3436,#636e72,#b2bec3)',
+  'purple': 'linear-gradient(135deg,#6c5ce7,#a29bfe,#dfe6e9)',
+  'rose': 'linear-gradient(135deg,#e84393,#fd79a8,#fab1a0)',
+  'gold': 'linear-gradient(135deg,#fdcb6e,#e17055,#d63031)',
+};
+
+function setWallpaper(name) {
+  const bg = WALLPAPERS[name] || WALLPAPERS['default'];
+  document.querySelector('.phone-frame').style.background = bg;
+  localStorage.setItem('wallpaper', name);
+  // Update active class
+  document.querySelectorAll('.wallpaper-option').forEach(o => o.classList.remove('active'));
+  const options = document.querySelectorAll('.wallpaper-option');
+  for (const opt of options) {
+    if (opt.textContent.trim().toLowerCase().includes(name.toLowerCase()) || 
+        (name === 'default' && opt.textContent.includes('Default'))) {
+      opt.classList.add('active');
+      break;
+    }
+  }
+}
+
+function loadWallpaper() {
+  const saved = localStorage.getItem('wallpaper');
+  if (saved) setWallpaper(saved);
+}
+
+// ============================================================
+// SEARCH
+// ============================================================
+function searchMessages() {
+  const query = document.getElementById('searchInput').value.trim().toLowerCase();
+  const resultsEl = document.getElementById('searchResults');
+  if (!query) { resultsEl.innerHTML = ''; return; }
+  
+  // Collect all messages from DOM
+  const bubbles = document.querySelectorAll('.msg-bubble');
+  const results = [];
+  bubbles.forEach((bubble, i) => {
+    const text = bubble.textContent.toLowerCase();
+    if (text.includes(query)) {
+      const row = bubble.closest('.msg-row');
+      const who = row.classList.contains('user') ? 'You' : 'Logan';
+      results.push({ text: bubble.textContent.substring(0, 80), who, element: bubble });
+    }
+  });
+  
+  if (results.length === 0) {
+    resultsEl.innerHTML = '<div style="color:#8E8E93;text-align:center;padding:20px">No results found</div>';
+    return;
+  }
+  
+  resultsEl.innerHTML = results.slice(0, 20).map((r, i) => 
+    '<div class="search-result" onclick="scrollToResult(' + i + ')"><div class="sr-text">' + escapeHtml(r.text) + '</div><div class="sr-meta">' + r.who + '</div></div>'
+  ).join('');
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+function saveNotifySettings() {
+  const sound = document.getElementById('soundToggle').checked;
+  const desktop = document.getElementById('desktopNotifyToggle').checked;
+  localStorage.setItem('notifySound', sound);
+  localStorage.setItem('notifyDesktop', desktop);
+}
+
+function loadNotifySettings() {
+  const sound = localStorage.getItem('notifySound') === 'true';
+  const desktop = localStorage.getItem('notifyDesktop') === 'true';
+  document.getElementById('soundToggle').checked = sound;
+  document.getElementById('desktopNotifyToggle').checked = desktop;
 }
 
 
@@ -1005,9 +1342,9 @@ function formatMessageContent(text) {
   
   // Parse sticker markers: [sticker:NAME]
   text = text.replace(/\[sticker:(.+?)\]/gi, (match, name) => {
-    const sticker = STICKER_LIBRARY[name.trim()];
-    if (sticker) {
-      return `<div class="sticker-msg"><img src="${sticker}" alt="${name.trim()}" style="max-width:160px;border-radius:10px"></div>`;
+    const svg = STICKER_SVG[name.trim()];
+    if (svg) {
+      return `<div class="sticker-msg"><div class="sticker-svg received">${svg}</div></div>`;
     }
     return match;
   });
@@ -1020,37 +1357,60 @@ function formatMessageContent(text) {
 // STICKER SYSTEM
 // ============================================================
 
-// Inline sticker library (GIF URLs + meme images)
-// These are hosted GIFs — lightweight, no API needed
-const STICKER_LIBRARY = {
-  "eyeroll": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdG9zdmRmdGZ3ZzR5eTl3eGd6a3Z3eHd3dXh3eHd3dSZlcD12MV9zdGlja2Vyc19zZWFyY2g/3o7btPCcdNniyf0ArS/giphy.gif",
-  "smirk": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ3Jpbm5pbmd3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/l0HlBO7eyXz5CEoro/giphy.gif",
-  "laugh": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbGF1Z2hpbmd3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/3o7btT1JNt4LmY7M5q/giphy.gif",
-  "shrug": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExc2hydWdpbmd3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/3o7btW1Js39p6o9W2Y/giphy.gif",
-  "wink": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd2lua2luZ3d3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/l0HlKrB02QY0R1fks/giphy.gif",
-  "facepalm": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZmFjZXBhbG1pbmd3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/3o7btN0qMjVINiRqXm/giphy.gif",
-  "thumbsup": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdGh1bWJzdXBpbmd3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/l0HlJDHkGQ5UyVzLi/giphy.gif",
-  "cool": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExY29vbGluZ3d3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/l0HlGqkFq4QpFmvaw/giphy.gif",
-  "excited": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZXhjaXRlZGluZ3d3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/l0HlFb2gZrCLDOLVe/giphy.gif",
-  "eyeroll2": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZXllcm9sbDJpbmd3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/3o7btW3hGwj4HvOj3y/giphy.gif",
-  "thinking": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdGhpbmtpbmd3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/l0HlG7mYNktOBmHWk/giphy.gif",
-  "love": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbG92ZWluZ3d3d3d3d3d3dyZlcD12MV9zdGlja2Vyc19zZWFyY2g/l0HlFpnGxV3RKLrBu/giphy.gif"
+// SVG inline sticker library — 30 expressions, no external dependencies
+const STICKER_SVG = {
+  // --- Happy ---
+  laugh: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="5" fill="#333"/><circle cx="42" cy="24" r="5" fill="#333"/><path d="M16 36c4 12 26 12 30 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M20 42c2 4 22 4 24 0" fill="#FF6B6B"/><text x="32" y="54" text-anchor="middle" font-size="11" fill="#333">HAHA</text></svg>',
+  lol: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="22" r="4" fill="#333"/><circle cx="44" cy="22" r="4" fill="#333"/><path d="M14 38c6 14 30 14 36 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="18" cy="50" r="3" fill="#FF6B6B"/><circle cx="46" cy="50" r="3" fill="#FF6B6B"/><text x="32" y="52" text-anchor="middle" font-size="10" fill="#333">LOL</text></svg>',
+  smirk: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="5" fill="#333"/><circle cx="42" cy="24" r="5" fill="#333"/><path d="M18 42c4 6 22 6 28 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M46 28l4 6" stroke="#333" stroke-width="2.5" stroke-linecap="round"/></svg>',
+  wink: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="5" fill="#333"/><path d="M38 22l8 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M16 40c5 10 26 10 30 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="30" cy="50" r="3" fill="#FF6B6B"/></svg>',
+  shy: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="5" fill="#333"/><circle cx="42" cy="24" r="5" fill="#333"/><path d="M16 40c4 8 26 8 30 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><rect x="22" y="44" width="20" height="8" rx="4" fill="#FF6B6B" opacity="0.6"/></svg>',
+  smug: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><path d="M18 24l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M40 24l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M14 42c5 10 30 10 34 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="20" cy="20" r="4" fill="#FF6B6B"/></svg>',
+  // --- Sad/Frustrated ---
+  cry: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="5" fill="#333"/><circle cx="42" cy="24" r="5" fill="#333"/><path d="M16 48c6-8 26-8 32 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M22 36l-4-6" stroke="#4FC3F7" stroke-width="2.5" stroke-linecap="round"/><path d="M46 36l-4-6" stroke="#4FC3F7" stroke-width="2.5" stroke-linecap="round"/></svg>',
+  wronged: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="22" r="4" fill="#333"/><circle cx="44" cy="22" r="4" fill="#333"/><path d="M18 44c6-6 22-6 28 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="46" r="2" fill="#4FC3F7"/><circle cx="40" cy="46" r="2" fill="#4FC3F7"/></svg>',
+  speechless: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="26" r="4" fill="#333"/><circle cx="42" cy="26" r="4" fill="#333"/><rect x="20" y="44" width="24" height="6" rx="3" fill="#333"/><text x="32" y="58" text-anchor="middle" font-size="9" fill="#666">...</text></svg>',
+  eyeroll: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="20" r="5" fill="#333"/><circle cx="42" cy="20" r="5" fill="#333"/><path d="M16 44c5-8 27-8 32 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/></svg>',
+  sigh: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="24" r="4" fill="#333"/><circle cx="44" cy="24" r="4" fill="#333"/><path d="M18 44c5-6 23-6 28 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><text x="48" y="52" font-size="14" fill="#999">~</text></svg>',
+  sweat: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="22" r="4" fill="#333"/><circle cx="44" cy="22" r="4" fill="#333"/><path d="M18 42c4-4 20-4 28 2" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M48 18l-2-6" stroke="#4FC3F7" stroke-width="3" stroke-linecap="round"/></svg>',
+  // --- Interactive ---
+  thumbsup: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><rect x="14" y="24" width="10" height="22" rx="3" fill="#FFD93D" stroke="#333" stroke-width="2"/><path d="M24 28c4-8 14-12 20-6v18c-4 4-14 6-20 2" fill="none" stroke="#333" stroke-width="2.5" stroke-linecap="round"/><text x="32" y="52" text-anchor="middle" font-size="10" fill="#4CAF50">LIKE</text></svg>',
+  ok: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="24" cy="22" r="4" fill="#333"/><circle cx="40" cy="22" r="4" fill="#333"/><circle cx="20" cy="40" r="6" fill="#4CAF50" opacity="0.3"/><text x="32" y="50" text-anchor="middle" font-size="14" fill="#4CAF50" font-weight="bold">OK!</text></svg>',
+  heart: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="20" r="4" fill="#333"/><circle cx="42" cy="20" r="4" fill="#333"/><path d="M32 26c-6-8-16-4-16 4s10 14 16 18c6-4 16-10 16-18s-10-12-16-4z" fill="#FF4757"/></svg>',
+  handshake: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="22" r="3" fill="#333"/><circle cx="44" cy="22" r="3" fill="#333"/><path d="M16 38c2 6 12 8 16 4l6-6 6 6c4 4 14 2 16-4" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/></svg>',
+  fistbump: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="18" cy="18" r="3" fill="#333"/><circle cx="46" cy="18" r="3" fill="#333"/><circle cx="20" cy="36" r="8" fill="#FFD93D" stroke="#333" stroke-width="2"/><circle cx="44" cy="36" r="8" fill="#FFD93D" stroke="#333" stroke-width="2"/><text x="32" y="54" text-anchor="middle" font-size="10" fill="#333">FIST</text></svg>',
+  // --- Emotional ---
+  angry: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FF6B6B"/><path d="M16 22l8 6" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M48 22l-8 6" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="22" cy="24" r="4" fill="#333"/><circle cx="42" cy="24" r="4" fill="#333"/><path d="M14 44c6 8 24 8 34 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/></svg>',
+  surprised: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="7" fill="#fff" stroke="#333" stroke-width="2"/><circle cx="42" cy="24" r="7" fill="#fff" stroke="#333" stroke-width="2"/><circle cx="22" cy="24" r="3" fill="#333"/><circle cx="42" cy="24" r="3" fill="#333"/><circle cx="32" cy="44" r="8" fill="#333"/></svg>',
+  cool: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><rect x="16" y="18" width="8" height="4" rx="2" fill="#333"/><rect x="40" y="18" width="8" height="4" rx="2" fill="#333"/><path d="M16 40c4 6 28 6 32 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><text x="32" y="54" text-anchor="middle" font-size="9" fill="#333">COOL</text></svg>',
+  thinking: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="18" cy="22" r="4" fill="#333"/><circle cx="46" cy="22" r="4" fill="#333"/><path d="M20 44c3-3 10-5 16-2" fill="none" stroke="#333" stroke-width="2.5" stroke-linecap="round"/><circle cx="38" cy="46" r="3" fill="#fff" stroke="#333" stroke-width="1.5"/><text x="38" y="46" text-anchor="middle" font-size="8" fill="#333">?</text></svg>',
+  // --- State ---
+  sleep: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><path d="M18 22l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M40 22l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M20 42c3-3 10-5 16-2" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/><text x="32" y="56" text-anchor="middle" font-size="10" fill="#999">zzz</text></svg>',
+  tired: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><path d="M18 22l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M46 22l-6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M18 44c4-4 24-4 28 2" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="44" r="2" fill="#999"/><circle cx="40" cy="44" r="2" fill="#999"/></svg>',
+  popcorn: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="18" r="3" fill="#333"/><circle cx="44" cy="18" r="3" fill="#333"/><rect x="18" y="36" width="28" height="12" rx="4" fill="#FF6B6B"/><rect x="24" y="32" width="4" height="6" rx="2" fill="#FFD93D"/><rect x="36" y="32" width="4" height="6" rx="2" fill="#FFD93D"/></svg>',
+  facepalm: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><rect x="24" y="18" width="16" height="8" rx="3" fill="#FFD93D" stroke="#333" stroke-width="2"/><circle cx="24" cy="24" r="3" fill="#333"/><circle cx="40" cy="24" r="3" fill="#333"/><path d="M20 44c3-5 21-5 24 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/></svg>',
+  dizzy: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="22" r="5" fill="#333"/><circle cx="42" cy="22" r="5" fill="#333"/><circle cx="32" cy="44" r="6" fill="#fff" stroke="#333" stroke-width="2"/><path d="M26 32c2 4 10 4 12 0" fill="none" stroke="#333" stroke-width="2"/></svg>',
+  // --- Celebrating ---
+  confetti: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="18" cy="18" r="3" fill="#333"/><circle cx="46" cy="18" r="3" fill="#333"/><path d="M14 40c6 10 30 10 36 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><rect x="12" y="14" width="4" height="4" rx="1" fill="#FF6B6B"/><rect x="48" y="12" width="4" height="4" rx="1" fill="#4FC3F7"/><rect x="20" y="10" width="3" height="3" rx="1" fill="#4CAF50"/><rect x="42" y="8" width="3" height="3" rx="1" fill="#FFD93D"/></svg>',
+  party: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><path d="M16 20l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M42 20l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M14 42c6 8 24 8 34 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><text x="18" y="14" font-size="12">🎉</text><text x="42" y="12" font-size="10">🎊</text></svg>',
+  cheers: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="18" cy="18" r="3" fill="#333"/><circle cx="46" cy="18" r="3" fill="#333"/><path d="M16 38c5 10 27 10 32 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><rect x="14" y="14" width="6" height="10" rx="2" fill="#FFD93D" stroke="#333" stroke-width="2"/><rect x="44" y="14" width="6" height="10" rx="2" fill="#FFD93D" stroke="#333" stroke-width="2"/></svg>',
+  birthday: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><path d="M16 20l6 4" stroke="#333" stroke-width="2.5" stroke-linecap="round"/><path d="M42 20l6 4" stroke="#333" stroke-width="2.5" stroke-linecap="round"/><path d="M16 42c5 8 27 8 32 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><text x="32" y="56" text-anchor="middle" font-size="8" fill="#FF4757">BDAY</text><circle cx="32" cy="14" r="4" fill="#FF6B6B"/></svg>',
 };
 
-const STICKER_NAMES = ["eyeroll", "smirk", "laugh", "shrug", "wink", "facepalm", "thumbsup", "cool", "excited", "eyeroll2", "thinking", "love"];
+// Map sticker names to SVG data URIs
+const STICKER_LIBRARY = {};
+for (const [name, svg] of Object.entries(STICKER_SVG)) {
+  STICKER_LIBRARY[name] = 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+
+const STICKER_NAMES = ["laugh","lol","smirk","wink","shy","smug","cry","wronged","speechless","eyeroll","sigh","sweat","thumbsup","ok","heart","handshake","fistbump","angry","surprised","cool","thinking","sleep","tired","popcorn","facepalm","dizzy","confetti","party","cheers","birthday"];
 const STICKER_LABELS = {
-  "eyeroll": "翻白眼",
-  "smirk": "坏笑",
-  "laugh": "大笑",
-  "shrug": "耸肩",
-  "wink": "眨眼",
-  "facepalm": "捂脸",
-  "thumbsup": "赞",
-  "cool": "酷",
-  "excited": "兴奋",
-  "eyeroll2": "白眼2",
-  "thinking": "思考",
-  "love": "爱心"
+  laugh:"大笑", lol:"笑喷", smirk:"坏笑", wink:"眨眼", shy:"害羞", smug:"得意",
+  cry:"哭", wronged:"委屈", speechless:"无语", eyeroll:"翻白眼", sigh:"叹气", sweat:"流汗",
+  thumbsup:"赞", ok:"OK", heart:"比心", handshake:"握手", fistbump:"抱拳",
+  angry:"生气", surprised:"惊讶", cool:"酷", thinking:"思考",
+  sleep:"睡觉", tired:"累", popcorn:"吃瓜", facepalm:"捂脸", dizzy:"晕",
+  confetti:"撒花", party:"放礼花", cheers:"干杯", birthday:"生日"
 };
 
 function toggleStickerPanel() {
@@ -1064,16 +1424,17 @@ function toggleStickerPanel() {
 function renderStickerGrid() {
   const grid = document.getElementById('stickerGrid');
   grid.innerHTML = STICKER_NAMES.map(name => {
-    const src = STICKER_LIBRARY[name];
+    const svg = STICKER_SVG[name];
     return `<div class="sticker-item" onclick="sendSticker('${name}')" title="${STICKER_LABELS[name]}">
-      <img src="${src}" alt="${name}" loading="lazy">
+      <div class="sticker-svg">${svg}</div>
+      <span class="sticker-label">${STICKER_LABELS[name]}</span>
     </div>`;
   }).join('');
 }
 
 function sendSticker(name) {
-  const src = STICKER_LIBRARY[name];
-  if (!src) return;
+  const svg = STICKER_SVG[name];
+  if (!svg) return;
   
   // Close panel
   document.getElementById('stickerPanel').classList.remove('open');
@@ -1083,7 +1444,7 @@ function sendSticker(name) {
   row.className = 'msg-row user';
   row.innerHTML = `
     <div class="msg-bubble-wrap">
-      <div class="sticker-msg"><img src="${src}" alt="${name}" style="max-width:160px;border-radius:10px"></div>
+      <div class="sticker-msg"><div class="sticker-svg sent">${svg}</div></div>
     </div>
     <div class="msg-time"><span class="read-status">✓</span></div>
   `;
@@ -1196,9 +1557,15 @@ function appendRestoredMessage(who, text) {
     ? `<span class="read-status read">✓✓</span>`
     : '';
   const avatarSrc = (who === 'logan' && typeof AVATARS !== 'undefined') ? AVATARS[currentAvatarIdx] : '';
+  const userAvatarSrc = (who === 'user' && localStorage.getItem('userAvatar')) ? localStorage.getItem('userAvatar') : '';
+  const avatarHtml = who === 'logan'
+    ? `<div class="avatar-small"><img src="${avatarSrc}" alt="" class="chat-avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>`
+    : (userAvatarSrc
+      ? `<div class="avatar-small user-avatar"><img src="${userAvatarSrc}" alt="" class="user-avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>`
+      : '');
   row.innerHTML = `
     <div class="msg-bubble-wrap">
-      ${who === 'logan' ? `<div class="avatar-small"><img src="${avatarSrc}" alt="" class="chat-avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>` : ''}
+      ${avatarHtml}
       <div class="msg-bubble">${formatMessageContent(text)}</div>
     </div>
     <div class="msg-time">${readHtml}</div>
@@ -1230,6 +1597,9 @@ function toggleMic() {
 // INIT
 // ============================================================
 (async () => {
+  // Load user avatar and wallpaper on init
+  loadUserAvatar();
+  loadWallpaper();
   if (!config.apiKey) {
     setTimeout(openSettings, 500);
   } else {
