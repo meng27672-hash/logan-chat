@@ -307,6 +307,7 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
         </div>
       </div>
       <div class="settings-footer">
+        <button class="settings-item" style="width:100%;justify-content:center;padding:12px;border-radius:12px;background:#1C1C1E;color:#A855F7;border:none;cursor:pointer;font-size:14px;font-weight:600;margin-bottom:8px" onclick="syncFromCloud()">☁️ Sync Messages from Cloud</button>
         <button class="settings-danger-btn" onclick="resetMemory()">🗑️ Clear All Memory</button>
       </div>
     </div>
@@ -1343,6 +1344,27 @@ async function resetMemory() {
   setTimeout(closeSettings, 1000);
 }
 
+async function syncFromCloud() {
+  const msgEl = document.getElementById('statusMsg');
+  if (!config.supabaseUrl || !config.supabaseKey) {
+    if (msgEl) { msgEl.textContent = '⚠️ Supabase not configured. Set up in AI & Memory Config first.'; msgEl.className = 'status-msg warn'; }
+    return;
+  }
+  if (msgEl) { msgEl.textContent = '⏳ Syncing from cloud...'; msgEl.className = 'status-msg'; }
+  try {
+    // Clear existing messages before re-rendering
+    const messagesEl = document.getElementById('messages');
+    const existing = messagesEl.querySelectorAll('.msg-row, .ts-divider');
+    existing.forEach(el => el.remove());
+    _historyRestored = false;
+    await restoreChatHistory(true);
+    if (msgEl) { msgEl.textContent = '✓ Synced!'; msgEl.className = 'status-msg ok'; }
+  } catch(e) {
+    if (msgEl) { msgEl.textContent = '✗ Sync failed. Check your connection.'; msgEl.className = 'status-msg warn'; }
+  }
+  setTimeout(closeSettings, 1500);
+}
+
 // ============================================================
 // USER AVATAR
 // ============================================================
@@ -1871,7 +1893,11 @@ async function triggerLoganReply(contextNote) {
 // ============================================================
 // RESTORE CHAT HISTORY
 // ============================================================
-async function restoreChatHistory() {
+let _historyRestored = false;
+
+async function restoreChatHistory(force = false) {
+  // Skip if already restored (prevent duplicate rendering on sync button)
+  if (_historyRestored && !force) return;
   let history = null;
   // Try Supabase first
   if (config.supabaseUrl && config.supabaseKey) {
@@ -1910,6 +1936,13 @@ async function restoreChatHistory() {
       const who = msg.role === 'user' ? 'user' : 'logan';
       appendRestoredMessage(who, msg.content);
     }
+    // Insert a subtle system message at the top
+    const sysRow = document.createElement('div');
+    sysRow.className = 'ts-divider';
+    sysRow.textContent = `Synced ${history.length} messages from cloud`;
+    sysRow.style.cssText = 'color:#6B7280;font-size:10.5px;margin:4px 0 12px;';
+    messagesEl.insertBefore(sysRow, messagesEl.firstChild);
+    _historyRestored = true;
   } else {
     // Keep welcome message but update its time
     const welcome = document.getElementById('welcomeMsg');
