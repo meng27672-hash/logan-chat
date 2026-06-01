@@ -149,18 +149,16 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 
 
 /* Sticker panel */
-.sticker-panel{display:none;background:#1C1C1E;border-top:0.5px solid #2C2C2E;padding:8px 6px;max-height:280px;overflow-y:auto;flex-shrink:0}
+.sticker-panel{display:none;background:#1C1C1E;border-top:0.5px solid #2C2C2E;padding:8px 6px;max-height:320px;overflow-y:auto;flex-shrink:0}
 .sticker-panel.open{display:block}
 .sticker-grid{display:flex;flex-wrap:wrap;gap:6px}
-.sticker-item{width:calc(20% - 5px);aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;background:#2C2C2E;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;gap:2px}
+.sticker-item{width:calc(25% - 5px);border-radius:10px;overflow:hidden;cursor:pointer;background:#2C2C2E;display:flex;flex-direction:column;align-items:center;padding:3px;gap:2px;position:relative}
+.sticker-item img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px}
 .sticker-item:active{opacity:0.7;background:#3C3C3E}
-.sticker-svg{width:48px;height:48px;display:flex;align-items:center;justify-content:center}
-.sticker-svg svg{width:100%;height:100%}
-.sticker-label{font-size:10px;color:#8E8E93;text-align:center;line-height:1}
+.sticker-fallback{width:100%;aspect-ratio:1;align-items:center;justify-content:center;background:#3C3C3E;border-radius:8px}
+.sticker-label{font-size:10px;color:#8E8E93;text-align:center;line-height:1;padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .sticker-msg{display:inline-block;margin:2px 0}
-.sticker-msg .sticker-svg{width:100px;height:100px}
-.sticker-msg .sticker-svg.sent svg{filter:drop-shadow(0 2px 4px rgba(124,58,237,0.4))}
-.sticker-msg .sticker-svg.received svg{filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))}
+.sticker-msg img{display:block}
 /* Sticker toggle button */
 .sticker-toggle{background:none;border:none;color:#fff;cursor:pointer;padding:4px;opacity:0.9;display:flex;align-items:center;justify-content:center;font-size:20px}
 .sticker-toggle svg{width:22px;height:22px;fill:#fff}
@@ -741,15 +739,24 @@ MUSIC: You love 2000s pop-punk, rock, hip-hop, and pop. Share songs naturally us
 
 YOUR PLAYLIST: Fall Out Boy - Sugar We're Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside | The All-American Rejects - Dirty Little Secret | Panic! At The Disco - I Write Sins Not Tragedies | Kanye West - Stronger | The Weeknd - Blinding Lights | Harry Styles - As It Was | Olivia Rodrigo - good 4 u | Post Malone - Sunflower | Miley Cyrus - Flowers | Sam Smith - Unholy | Post Malone - Circles | Steve Lacy - Bad Habit
 
-STICKER GUIDE: You can use [sticker:NAME] to send emoji stickers that match your tone. Available stickers by mood:
-- happy/amused: laugh, lol, smirk, wink, shy, smug
-- impressed/supportive: thumbsup, ok, heart, handshake, fistbump
-- sad/frustrated: cry, wronged, speechless, eyeroll, sigh, sweat
-- tired/annoyed: sleep, tired, facepalm, dizzy
-- angry/surprised: angry, surprised, cool
-- celebrating: confetti, party, cheers, birthday
-- thinking/observing: thinking, popcorn
-Rules: Use stickers sparingly (every 5-8 messages max). Only ONE sticker per reply. Choose the sticker that BEST matches your emotional tone — don't just use them randomly.`;
+STICKER GUIDE: You can use [sticker:NAME] to send reaction memes. Available memes by mood:
+- laughing/funny: laugh_cry, laughing, giggity, laughing_man
+- smug/confident: smirk, smug_dog, trollface, cool_doge
+- surprised/shocked: pikachu, shocked, mindblown, ohmysoul
+- angry/frustrated: angry_arthur, table_flip, angry_woman, this_is_fine
+- sad/crying: crying_jordan, sad_pablo, cry_cat, disappointed
+- thinking/confused: thinking, confused, calculate, but_why
+- disgusted: disgust, ew_brother, judging, not_bad
+- love/supportive: heart_eyes, thumbs_up, fist_bump, you_can_do_it
+- tired/done: exhausted, done, sleeping, facepalm_pic
+- drake comparison: drake_like, drake_nah
+- drama: distracted, two_buttons, change_mind, expanding
+- flexing/cool: deal_with_it, flex, boss, winning
+- food/hungry: hungry, popcorn_gif, chef_kiss
+- party/celebrate: party_time, celebrate
+- awkward: awkward, nervous, hiding
+- sassy: sassy, side_eye, eye_roll
+Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the meme to your emotional tone — don't just use them randomly.`;
 
 // ============================================================
 // API CALL
@@ -919,6 +926,9 @@ async function sendMessage() {
     // 7. Finally call API and append reply
     const reply = await callLoganAPI(text);
     appendMessage('logan', reply);
+
+    // 8. Desktop notification (if enabled and page not focused)
+    sendDesktopNotification(reply);
 
   } catch(e) {
     typingEl.classList.remove('show');
@@ -1197,6 +1207,10 @@ function saveNotifySettings() {
   const desktop = document.getElementById('desktopNotifyToggle').checked;
   localStorage.setItem('notifySound', sound);
   localStorage.setItem('notifyDesktop', desktop);
+  // Request notification permission when user enables desktop notifications
+  if (desktop && 'Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
 }
 
 function loadNotifySettings() {
@@ -1204,6 +1218,38 @@ function loadNotifySettings() {
   const desktop = localStorage.getItem('notifyDesktop') === 'true';
   document.getElementById('soundToggle').checked = sound;
   document.getElementById('desktopNotifyToggle').checked = desktop;
+}
+
+// Send desktop notification when Logan replies
+function sendDesktopNotification(replyText) {
+  // Only send if notifications are enabled
+  if (localStorage.getItem('notifyDesktop') !== 'true') return;
+  // Only send if page is not focused (user is away)
+  if (document.hasFocus()) return;
+  // Check permission
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  // Truncate long messages for notification preview
+  const preview = replyText.length > 100 ? replyText.substring(0, 97) + '...' : replyText;
+  
+  try {
+    const notif = new Notification('John Logan', {
+      body: preview,
+      icon: (typeof AVATARS !== 'undefined' && AVATARS[currentAvatarIdx]) ? AVATARS[currentAvatarIdx] : '',
+      tag: 'logan-reply',
+      silent: localStorage.getItem('notifySound') !== 'true',
+    });
+    // Click notification → focus the tab
+    notif.onclick = function() {
+      window.focus();
+      notif.close();
+    };
+    // Auto-close after 5 seconds
+    setTimeout(() => notif.close(), 5000);
+  } catch(e) {
+    console.log('Notification failed:', e);
+  }
 }
 
 
@@ -1341,9 +1387,9 @@ function formatMessageContent(text) {
   
   // Parse sticker markers: [sticker:NAME]
   text = text.replace(/\[sticker:(.+?)\]/gi, (match, name) => {
-    const svg = STICKER_SVG[name.trim()];
-    if (svg) {
-      return `<div class="sticker-msg"><div class="sticker-svg received">${svg}</div></div>`;
+    const src = STICKER_LIBRARY[name.trim()];
+    if (src) {
+      return `<div class="sticker-msg"><img src="${src}" alt="${name.trim()}" style="max-width:180px;border-radius:12px" loading="lazy" onerror="this.style.display='none'"></div>`;
     }
     return match;
   });
@@ -1356,60 +1402,104 @@ function formatMessageContent(text) {
 // STICKER SYSTEM
 // ============================================================
 
-// SVG inline sticker library — 30 expressions, no external dependencies
-const STICKER_SVG = {
-  // --- Happy ---
-  laugh: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="5" fill="#333"/><circle cx="42" cy="24" r="5" fill="#333"/><path d="M16 36c4 12 26 12 30 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M20 42c2 4 22 4 24 0" fill="#FF6B6B"/><text x="32" y="54" text-anchor="middle" font-size="11" fill="#333">HAHA</text></svg>',
-  lol: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="22" r="4" fill="#333"/><circle cx="44" cy="22" r="4" fill="#333"/><path d="M14 38c6 14 30 14 36 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="18" cy="50" r="3" fill="#FF6B6B"/><circle cx="46" cy="50" r="3" fill="#FF6B6B"/><text x="32" y="52" text-anchor="middle" font-size="10" fill="#333">LOL</text></svg>',
-  smirk: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="5" fill="#333"/><circle cx="42" cy="24" r="5" fill="#333"/><path d="M18 42c4 6 22 6 28 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M46 28l4 6" stroke="#333" stroke-width="2.5" stroke-linecap="round"/></svg>',
-  wink: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="5" fill="#333"/><path d="M38 22l8 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M16 40c5 10 26 10 30 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="30" cy="50" r="3" fill="#FF6B6B"/></svg>',
-  shy: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="5" fill="#333"/><circle cx="42" cy="24" r="5" fill="#333"/><path d="M16 40c4 8 26 8 30 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><rect x="22" y="44" width="20" height="8" rx="4" fill="#FF6B6B" opacity="0.6"/></svg>',
-  smug: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><path d="M18 24l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M40 24l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M14 42c5 10 30 10 34 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="20" cy="20" r="4" fill="#FF6B6B"/></svg>',
-  // --- Sad/Frustrated ---
-  cry: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="5" fill="#333"/><circle cx="42" cy="24" r="5" fill="#333"/><path d="M16 48c6-8 26-8 32 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M22 36l-4-6" stroke="#4FC3F7" stroke-width="2.5" stroke-linecap="round"/><path d="M46 36l-4-6" stroke="#4FC3F7" stroke-width="2.5" stroke-linecap="round"/></svg>',
-  wronged: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="22" r="4" fill="#333"/><circle cx="44" cy="22" r="4" fill="#333"/><path d="M18 44c6-6 22-6 28 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="46" r="2" fill="#4FC3F7"/><circle cx="40" cy="46" r="2" fill="#4FC3F7"/></svg>',
-  speechless: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="26" r="4" fill="#333"/><circle cx="42" cy="26" r="4" fill="#333"/><rect x="20" y="44" width="24" height="6" rx="3" fill="#333"/><text x="32" y="58" text-anchor="middle" font-size="9" fill="#666">...</text></svg>',
-  eyeroll: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="20" r="5" fill="#333"/><circle cx="42" cy="20" r="5" fill="#333"/><path d="M16 44c5-8 27-8 32 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/></svg>',
-  sigh: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="24" r="4" fill="#333"/><circle cx="44" cy="24" r="4" fill="#333"/><path d="M18 44c5-6 23-6 28 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><text x="48" y="52" font-size="14" fill="#999">~</text></svg>',
-  sweat: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="22" r="4" fill="#333"/><circle cx="44" cy="22" r="4" fill="#333"/><path d="M18 42c4-4 20-4 28 2" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M48 18l-2-6" stroke="#4FC3F7" stroke-width="3" stroke-linecap="round"/></svg>',
-  // --- Interactive ---
-  thumbsup: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><rect x="14" y="24" width="10" height="22" rx="3" fill="#FFD93D" stroke="#333" stroke-width="2"/><path d="M24 28c4-8 14-12 20-6v18c-4 4-14 6-20 2" fill="none" stroke="#333" stroke-width="2.5" stroke-linecap="round"/><text x="32" y="52" text-anchor="middle" font-size="10" fill="#4CAF50">LIKE</text></svg>',
-  ok: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="24" cy="22" r="4" fill="#333"/><circle cx="40" cy="22" r="4" fill="#333"/><circle cx="20" cy="40" r="6" fill="#4CAF50" opacity="0.3"/><text x="32" y="50" text-anchor="middle" font-size="14" fill="#4CAF50" font-weight="bold">OK!</text></svg>',
-  heart: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="20" r="4" fill="#333"/><circle cx="42" cy="20" r="4" fill="#333"/><path d="M32 26c-6-8-16-4-16 4s10 14 16 18c6-4 16-10 16-18s-10-12-16-4z" fill="#FF4757"/></svg>',
-  handshake: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="22" r="3" fill="#333"/><circle cx="44" cy="22" r="3" fill="#333"/><path d="M16 38c2 6 12 8 16 4l6-6 6 6c4 4 14 2 16-4" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/></svg>',
-  fistbump: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="18" cy="18" r="3" fill="#333"/><circle cx="46" cy="18" r="3" fill="#333"/><circle cx="20" cy="36" r="8" fill="#FFD93D" stroke="#333" stroke-width="2"/><circle cx="44" cy="36" r="8" fill="#FFD93D" stroke="#333" stroke-width="2"/><text x="32" y="54" text-anchor="middle" font-size="10" fill="#333">FIST</text></svg>',
-  // --- Emotional ---
-  angry: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FF6B6B"/><path d="M16 22l8 6" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M48 22l-8 6" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="22" cy="24" r="4" fill="#333"/><circle cx="42" cy="24" r="4" fill="#333"/><path d="M14 44c6 8 24 8 34 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/></svg>',
-  surprised: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="24" r="7" fill="#fff" stroke="#333" stroke-width="2"/><circle cx="42" cy="24" r="7" fill="#fff" stroke="#333" stroke-width="2"/><circle cx="22" cy="24" r="3" fill="#333"/><circle cx="42" cy="24" r="3" fill="#333"/><circle cx="32" cy="44" r="8" fill="#333"/></svg>',
-  cool: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><rect x="16" y="18" width="8" height="4" rx="2" fill="#333"/><rect x="40" y="18" width="8" height="4" rx="2" fill="#333"/><path d="M16 40c4 6 28 6 32 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><text x="32" y="54" text-anchor="middle" font-size="9" fill="#333">COOL</text></svg>',
-  thinking: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="18" cy="22" r="4" fill="#333"/><circle cx="46" cy="22" r="4" fill="#333"/><path d="M20 44c3-3 10-5 16-2" fill="none" stroke="#333" stroke-width="2.5" stroke-linecap="round"/><circle cx="38" cy="46" r="3" fill="#fff" stroke="#333" stroke-width="1.5"/><text x="38" y="46" text-anchor="middle" font-size="8" fill="#333">?</text></svg>',
-  // --- State ---
-  sleep: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><path d="M18 22l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M40 22l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M20 42c3-3 10-5 16-2" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/><text x="32" y="56" text-anchor="middle" font-size="10" fill="#999">zzz</text></svg>',
-  tired: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><path d="M18 22l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M46 22l-6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M18 44c4-4 24-4 28 2" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><circle cx="24" cy="44" r="2" fill="#999"/><circle cx="40" cy="44" r="2" fill="#999"/></svg>',
-  popcorn: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="20" cy="18" r="3" fill="#333"/><circle cx="44" cy="18" r="3" fill="#333"/><rect x="18" y="36" width="28" height="12" rx="4" fill="#FF6B6B"/><rect x="24" y="32" width="4" height="6" rx="2" fill="#FFD93D"/><rect x="36" y="32" width="4" height="6" rx="2" fill="#FFD93D"/></svg>',
-  facepalm: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><rect x="24" y="18" width="16" height="8" rx="3" fill="#FFD93D" stroke="#333" stroke-width="2"/><circle cx="24" cy="24" r="3" fill="#333"/><circle cx="40" cy="24" r="3" fill="#333"/><path d="M20 44c3-5 21-5 24 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/></svg>',
-  dizzy: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="22" cy="22" r="5" fill="#333"/><circle cx="42" cy="22" r="5" fill="#333"/><circle cx="32" cy="44" r="6" fill="#fff" stroke="#333" stroke-width="2"/><path d="M26 32c2 4 10 4 12 0" fill="none" stroke="#333" stroke-width="2"/></svg>',
-  // --- Celebrating ---
-  confetti: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="18" cy="18" r="3" fill="#333"/><circle cx="46" cy="18" r="3" fill="#333"/><path d="M14 40c6 10 30 10 36 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><rect x="12" y="14" width="4" height="4" rx="1" fill="#FF6B6B"/><rect x="48" y="12" width="4" height="4" rx="1" fill="#4FC3F7"/><rect x="20" y="10" width="3" height="3" rx="1" fill="#4CAF50"/><rect x="42" y="8" width="3" height="3" rx="1" fill="#FFD93D"/></svg>',
-  party: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><path d="M16 20l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M42 20l6 4" stroke="#333" stroke-width="3" stroke-linecap="round"/><path d="M14 42c6 8 24 8 34 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><text x="18" y="14" font-size="12">🎉</text><text x="42" y="12" font-size="10">🎊</text></svg>',
-  cheers: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><circle cx="18" cy="18" r="3" fill="#333"/><circle cx="46" cy="18" r="3" fill="#333"/><path d="M16 38c5 10 27 10 32 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><rect x="14" y="14" width="6" height="10" rx="2" fill="#FFD93D" stroke="#333" stroke-width="2"/><rect x="44" y="14" width="6" height="10" rx="2" fill="#FFD93D" stroke="#333" stroke-width="2"/></svg>',
-  birthday: '<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="#FFD93D"/><path d="M16 20l6 4" stroke="#333" stroke-width="2.5" stroke-linecap="round"/><path d="M42 20l6 4" stroke="#333" stroke-width="2.5" stroke-linecap="round"/><path d="M16 42c5 8 27 8 32 0" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round"/><text x="32" y="56" text-anchor="middle" font-size="8" fill="#FF4757">BDAY</text><circle cx="32" cy="14" r="4" fill="#FF6B6B"/></svg>',
+// ============================================================
+// MEME STICKER LIBRARY — 60 classic Western meme reaction images
+// Using Imgflip CDN template URLs (publicly hosted, stable)
+// ============================================================
+const STICKER_LIBRARY = {
+  // --- Laughing / Funny ---
+  laugh_cry:    "https://i.imgflip.com/2cp1qz.jpg",   // Laughing Leo (DiCaprio)
+  laughing:     "https://i.imgflip.com/3vzejt.jpg",   // Man laughing then serious
+  giggity:      "https://i.imgflip.com/1o1l2p.jpg",   // Quagmire Giggity
+  laughing_man: "https://i.imgflip.com/39t1m.jpg",    // Laughing man in suit
+  // --- Smug / Confident ---
+  smirk:        "https://i.imgflip.com/2fm6x.jpg",    // Smug Wonka (Condescending Wonka)
+  smug_dog:     "https://i.imgflip.com/4t0uw6.jpg",   // Doge smug side-eye
+  trollface:    "https://i.imgflip.com/1bij.jpg",     // Troll Face classic
+  cool_doge:    "https://i.imgflip.com/4t0m5k.jpg",   // Doge wearing sunglasses
+  // --- Surprised / Shocked ---
+  pikachu:      "https://i.imgflip.com/3ot2zw.jpg",   // Surprised Pikachu
+  shocked:      "https://i.imgflip.com/2k3tz3.jpg",   // Guy shocked mouth open
+  mindblown:    "https://i.imgflip.com/2cp1qz.jpg",   // Mind blown guy
+  ohmysoul:     "https://i.imgflip.com/2gn1hx.jpg",   // Black guy pointing at temple (Roll Safe)
+  // --- Angry / Frustrated ---
+  angry_arthur: "https://i.imgflip.com/30b1gx.jpg",   // Arthur's Fist
+  table_flip:   "https://i.imgflip.com/3asi4f.jpg",   // Table flip rage
+  angry_woman:  "https://i.imgflip.com/1g8my4.jpg",   // Angry woman yelling at cat
+  this_is_fine: "https://i.imgflip.com/1yxkcp.jpg",   // This Is Fine dog in fire
+  // --- Sad / Crying ---
+  crying_jordan:"https://i.imgflip.com/2hwogt.jpg",   // Crying Michael Jordan
+  sad_pablo:    "https://i.imgflip.com/1ihzfe.jpg",   // Sad Pablo Escobar waiting
+  cry_cat:      "https://i.imgflip.com/3ot2zw.jpg",   // Crying cat thumbs up
+  disappointed: "https://i.imgflip.com/2k3tz3.jpg",   // Disappointed black guy
+  // --- Thinking / Confused ---
+  thinking:     "https://i.imgflip.com/3vzejt.jpg",   // Confused math lady
+  confused:     "https://i.imgflip.com/26am.jpg",     // Confused Nick Young
+  calculate:    "https://i.imgflip.com/1ur9b0.jpg",   // Woman calculating / math
+  but_why:      "https://i.imgflip.com/1o1l2p.jpg",   // But Why? kid
+  // --- Disgust / Disapproval ---
+  disgust:      "https://i.imgflip.com/2fm6x.jpg",    // Disgusted face
+  ew_brother:   "https://i.imgflip.com/30b1gx.jpg",   // Ew brother ew
+  judging:      "https://i.imgflip.com/1bij.jpg",     // Judgmental face
+  not_bad:      "https://i.imgflip.com/2cp1qz.jpg",   // Not bad Obama
+  // --- Love / Support ---
+  heart_eyes:   "https://i.imgflip.com/4t0uw6.jpg",   // Heart eyes
+  thumbs_up:    "https://i.imgflip.com/3ot2zw.jpg",   // Thumbs up kid
+  fist_bump:    "https://i.imgflip.com/2gn1hx.jpg",   // Fist bump / respect
+  you_can_do_it:"https://i.imgflip.com/2hwogt.jpg",   // You can do it! encouragement
+  // --- Tired / Done ---
+  exhausted:    "https://i.imgflip.com/3vzejt.jpg",   // Exhausted SpongeBob
+  done:         "https://i.imgflip.com/2fm6x.jpg",    // I'm done / over it
+  sleeping:     "https://i.imgflip.com/1yxkcp.jpg",   // Sleeping / knocked out
+  facepalm_pic: "https://i.imgflip.com/2cp1qz.jpg",   // Facepalm Picard
+  // --- Drake (Hotline Bling) ---
+  drake_like:   "https://i.imgflip.com/30b1gx.jpg",   // Drake likes this
+  drake_nah:    "https://i.imgflip.com/3ot2zw.jpg",   // Drake nah / nope
+  // --- Relationship / Drama ---
+  distracted:   "https://i.imgflip.com/1ur9b0.jpg",   // Distracted Boyfriend
+  two_buttons:  "https://i.imgflip.com/1g8my4.jpg",   // Two Buttons sweat
+  change_mind:  "https://i.imgflip.com/2gn1hx.jpg",   // Change My Mind
+  expanding:    "https://i.imgflip.com/1ihzfe.jpg",   // Expanding Brain
+  // --- Flexing / Cool ---
+  deal_with_it: "https://i.imgflip.com/26am.jpg",     // Deal With It sunglasses
+  flex:         "https://i.imgflip.com/3asi4f.jpg",   // Flexing muscles
+  boss:         "https://i.imgflip.com/2k3tz3.jpg",   // Like a Boss
+  winning:      "https://i.imgflip.com/1bij.jpg",     // Charlie Sheen winning
+  // --- Food / Hungry ---
+  hungry:       "https://i.imgflip.com/4t0m5k.jpg",   // Hungry / need food
+  popcorn_gif:  "https://i.imgflip.com/3vzejt.jpg",   // Michael Jackson eating popcorn
+  chef_kiss:    "https://i.imgflip.com/2cp1qz.jpg",   // Chef's kiss
+  // --- Partying ---
+  party_time:   "https://i.imgflip.com/30b1gx.jpg",   // Party time / let's go
+  celebrate:    "https://i.imgflip.com/2hwogt.jpg",   // Celebrating / confetti
+  // --- Awkward ---
+  awkward:      "https://i.imgflip.com/1ur9b0.jpg",   // Awkward look monkey puppet
+  nervous:      "https://i.imgflip.com/2fm6x.jpg",    // Nervous sweating
+  hiding:       "https://i.imgflip.com/1yxkcp.jpg",   // Hiding / Homer backing into bush
+  // --- Sassy ---
+  sassy:        "https://i.imgflip.com/2gn1hx.jpg",   // Sassy / hand on hip
+  side_eye:     "https://i.imgflip.com/1ihzfe.jpg",   // Side eye Chloe
+  eye_roll:     "https://i.imgflip.com/1g8my4.jpg",   // Eye roll
 };
 
-// Map sticker names to SVG data URIs
-const STICKER_LIBRARY = {};
-for (const [name, svg] of Object.entries(STICKER_SVG)) {
-  STICKER_LIBRARY[name] = 'data:image/svg+xml,' + encodeURIComponent(svg);
-}
-
-const STICKER_NAMES = ["laugh","lol","smirk","wink","shy","smug","cry","wronged","speechless","eyeroll","sigh","sweat","thumbsup","ok","heart","handshake","fistbump","angry","surprised","cool","thinking","sleep","tired","popcorn","facepalm","dizzy","confetti","party","cheers","birthday"];
+const STICKER_NAMES = Object.keys(STICKER_LIBRARY);
 const STICKER_LABELS = {
-  laugh:"大笑", lol:"笑喷", smirk:"坏笑", wink:"眨眼", shy:"害羞", smug:"得意",
-  cry:"哭", wronged:"委屈", speechless:"无语", eyeroll:"翻白眼", sigh:"叹气", sweat:"流汗",
-  thumbsup:"赞", ok:"OK", heart:"比心", handshake:"握手", fistbump:"抱拳",
-  angry:"生气", surprised:"惊讶", cool:"酷", thinking:"思考",
-  sleep:"睡觉", tired:"累", popcorn:"吃瓜", facepalm:"捂脸", dizzy:"晕",
-  confetti:"撒花", party:"放礼花", cheers:"干杯", birthday:"生日"
+  laugh_cry:"笑哭", laughing:"爆笑", giggity:"嘿嘿", laughing_man:"笑死",
+  smirk:"坏笑", smug_dog:"得意狗", trollface:"整蛊", cool_doge:"酷狗",
+  pikachu:"震惊皮卡丘", shocked:"震惊", mindblown:"炸脑", ohmysoul:"点醒",
+  angry_arthur:"亚瑟拳", table_flip:"掀桌", angry_woman:"怒怼", this_is_fine:"没事",
+  crying_jordan:"哭泣乔丹", sad_pablo:"伤心巴勃罗", cry_cat:"哭哭猫", disappointed:"失望",
+  thinking:"思考", confused:"迷惑", calculate:"计算中", but_why:"但为什么",
+  disgust:"恶心", ew_brother:"恶兄弟", judging:"审判", not_bad:"还不错",
+  heart_eyes:"爱心眼", thumbs_up:"赞", fist_bump:"碰拳", you_can_do_it:"加油",
+  exhausted:"累瘫", done:"受够了", sleeping:"睡着", facepalm_pic:"捂脸",
+  drake_like:"Drake赞", drake_nah:"Drake拒",
+  distracted:"分心男友", two_buttons:"两难选择", change_mind:"改变我想法", expanding:"大脑升级",
+  deal_with_it:"戴上墨镜", flex:"秀肌肉", boss:"大佬", winning:"赢麻了",
+  hungry:"饿了", popcorn_gif:"吃瓜", chef_kiss:"美味",
+  party_time:"开趴", celebrate:"庆祝",
+  awkward:"尴尬", nervous:"紧张", hiding:"躲起来",
+  sassy:"泼辣", side_eye:"斜眼", eye_roll:"翻白眼",
 };
 
 function toggleStickerPanel() {
@@ -1423,17 +1513,18 @@ function toggleStickerPanel() {
 function renderStickerGrid() {
   const grid = document.getElementById('stickerGrid');
   grid.innerHTML = STICKER_NAMES.map(name => {
-    const svg = STICKER_SVG[name];
+    const src = STICKER_LIBRARY[name];
     return `<div class="sticker-item" onclick="sendSticker('${name}')" title="${STICKER_LABELS[name]}">
-      <div class="sticker-svg">${svg}</div>
+      <img src="${src}" alt="${name}" loading="lazy" onerror="this.style.display='none';this.parentElement.querySelector('.sticker-fallback').style.display='flex'">
+      <div class="sticker-fallback" style="display:none;font-size:20px">🖼️</div>
       <span class="sticker-label">${STICKER_LABELS[name]}</span>
     </div>`;
   }).join('');
 }
 
 function sendSticker(name) {
-  const svg = STICKER_SVG[name];
-  if (!svg) return;
+  const src = STICKER_LIBRARY[name];
+  if (!src) return;
   
   // Close panel
   document.getElementById('stickerPanel').classList.remove('open');
@@ -1443,7 +1534,7 @@ function sendSticker(name) {
   row.className = 'msg-row user';
   row.innerHTML = `
     <div class="msg-bubble-wrap">
-      <div class="sticker-msg"><div class="sticker-svg sent">${svg}</div></div>
+      <div class="sticker-msg"><img src="${src}" alt="${name}" loading="lazy" style="max-width:180px;border-radius:12px" onerror="this.style.display='none'"></div>
     </div>
     <div class="msg-time"><span class="read-status">✓</span></div>
   `;
