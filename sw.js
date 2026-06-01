@@ -1,12 +1,16 @@
 // Service Worker for John Logan Chat
 // Enables PWA install + push notification support
+// v4: Network First strategy (always fetch latest, cache as fallback)
 
-const CACHE_NAME = 'logan-chat-v3';
+const CACHE_NAME = 'logan-chat-v4';
 const BASE = '/logan-chat/';
 
 const ASSETS = [
   BASE,
-  BASE + 'manifest.json',
+  BASE + 'index.html',
+  BASE + 'manifest.webmanifest',
+  BASE + 'icon-192.png',
+  BASE + 'icon-512.png',
   BASE + 'icon.svg',
   BASE + 'memes/laughing_leo.jpg',
   BASE + 'memes/smug_wonka.jpg',
@@ -56,22 +60,26 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch - serve from cache, fallback to network
+// Fetch - Network First, cache fallback
+// This ensures PWA always gets the latest version, but works offline too
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   // Don't cache API calls
-  if (event.request.url.includes('api.')) return fetch(event.request);
+  if (event.request.url.includes('api.') || event.request.url.includes('supabase')) return fetch(event.request);
+  
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((response) => {
-        if (response.status === 200) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clone);
-          });
-        }
-        return response;
-      });
+    fetch(event.request).then((response) => {
+      // Network succeeded — update cache for offline fallback
+      if (response.status === 200) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, clone);
+        });
+      }
+      return response;
+    }).catch(() => {
+      // Network failed — serve from cache
+      return caches.match(event.request);
     })
   );
 });
