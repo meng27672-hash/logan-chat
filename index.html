@@ -11,9 +11,9 @@
 <title>John Logan</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden}
-body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;color:#fff;display:flex;justify-content:center}
-.phone-frame{width:100%;max-width:420px;height:100vh;height:100dvh;background:#000;display:flex;flex-direction:column;position:relative;overflow:hidden}
+html,body{height:100%;overflow:hidden;width:100%}
+body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;color:#fff;display:flex;justify-content:center;margin:0;padding:0}
+.phone-frame{width:100%;max-width:100%;height:100vh;height:100dvh;background:#000;display:flex;flex-direction:column;position:relative;overflow:hidden}
 /* When keyboard is open, use visualViewport height */
 .phone-frame.keyboard-open{height:100vh;height:100dvh}
 
@@ -70,10 +70,10 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 @keyframes blink{0%,60%,100%{opacity:0.3}30%{opacity:1}}
 
 /* Input area */
-.input-area{display:flex;align-items:flex-end;padding:12px 12px 12px;gap:10px;background:#000;border-top:0.5px solid #1C1C1E;flex-shrink:0;position:sticky;bottom:0;z-index:10;min-height:52px}
-.input-btn{background:none;border:none;color:#fff;cursor:pointer;padding:4px;opacity:0.9;display:flex;align-items:center;justify-content:center}
-.input-btn svg{width:22px;height:22px;fill:#fff}
-.input-box{flex:1;background:#1C1C1E;border:none;border-radius:20px;padding:12px 16px;color:#EDEDED;font-size:15.5px;outline:none;min-height:20px;max-height:100px;resize:none;line-height:1.4}
+.input-area{display:flex;align-items:flex-end;padding:10px 8px 10px;gap:6px;background:#000;border-top:0.5px solid #1C1C1E;flex-shrink:0;position:sticky;bottom:0;z-index:10;min-height:52px}
+.input-btn{background:none;border:none;color:#fff;cursor:pointer;padding:3px;opacity:0.9;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.input-btn svg{width:20px;height:20px;fill:#fff}
+.input-box{flex:1;background:#1C1C1E;border:none;border-radius:20px;padding:12px 14px;color:#EDEDED;font-size:15.5px;outline:none;min-height:20px;max-height:100px;resize:none;line-height:1.4;min-width:0}
 .input-box::placeholder{color:#8E8E93}
 .send-btn{background:linear-gradient(135deg,#7C3AED,#A855F7);border:none;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;opacity:0.85;transition:opacity 0.2s,transform 0.15s}
 .send-btn svg{width:15px;height:15px;fill:#fff}
@@ -173,7 +173,28 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 .mic-btn.recording{color:#FF3B30}
 .mic-btn.recording svg{fill:#FF3B30}
 
-/* Song card */
+/* Reply preview bar */
+.reply-preview{display:none;align-items:center;padding:8px 12px;background:#1C1C1E;border-top:0.5px solid #2C2C2E;gap:8px;flex-shrink:0}
+.reply-preview.show{display:flex}
+.reply-preview-line{width:2px;height:32px;background:#7C3AED;border-radius:1px;flex-shrink:0}
+.reply-preview-info{flex:1;min-width:0}
+.reply-preview-who{font-size:12px;color:#7C3AED;font-weight:600}
+.reply-preview-text{font-size:13px;color:#8E8E93;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reply-preview-close{background:none;border:none;color:#8E8E93;cursor:pointer;padding:4px;font-size:16px;line-height:1}
+/* Reply reference in bubble */
+.reply-ref{display:flex;align-items:center;gap:6px;margin-bottom:4px;padding-bottom:4px;border-bottom:0.5px solid rgba(255,255,255,0.15);cursor:pointer}
+.reply-ref-line{width:2px;height:20px;background:rgba(255,255,255,0.5);border-radius:1px;flex-shrink:0}
+.reply-ref-who{font-size:11px;font-weight:600;opacity:0.8}
+.reply-ref-text{font-size:11px;opacity:0.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+/* Long press context menu */
+.context-menu{display:none;position:fixed;background:#2C2C2E;border-radius:12px;padding:4px 0;z-index:200;min-width:140px;box-shadow:0 4px 16px rgba(0,0,0,0.5);overflow:hidden}
+.context-menu.show{display:block}
+.context-menu-item{display:flex;align-items:center;gap:8px;padding:10px 16px;cursor:pointer;font-size:14px;color:#EDEDED;transition:background 0.15s}
+.context-menu-item:active{background:#3C3C3E}
+.context-menu-item.reply-item svg{width:16px;height:16px;fill:#fff}
+/* Reply jump highlight */
+.msg-row.jump-highlight .msg-bubble{animation:jumpPulse 0.8s ease-out}
+@keyframes jumpPulse{0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0)}50%{box-shadow:0 0 0 4px rgba(124,58,237,0.4)}}
 
 </style>
 </head>
@@ -211,6 +232,15 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 
   <div class="sticker-panel" id="stickerPanel">
     <div class="sticker-grid" id="stickerGrid"></div>
+  </div>
+
+  <div class="reply-preview" id="replyPreview">
+    <div class="reply-preview-line"></div>
+    <div class="reply-preview-info">
+      <div class="reply-preview-who" id="replyPreviewWho"></div>
+      <div class="reply-preview-text" id="replyPreviewText"></div>
+    </div>
+    <button class="reply-preview-close" onclick="cancelReply()">&times;</button>
   </div>
 
   <div class="input-area">
@@ -654,6 +684,11 @@ async function addMessage(role, content) {
   await sbInsert(role, content);
 }
 
+// Simple save (alias) — used by sticker system
+async function saveMessage(role, content) {
+  return addMessage(role, content);
+}
+
 async function getHistory() {
   // Simple recent history (no decay) — used as fallback
   const cloud = await sbFetchHistory(MAX_CONTEXT);
@@ -707,6 +742,114 @@ const messagesEl = document.getElementById('messages');
 const inputEl    = document.getElementById('msgInput');
 const sendBtnEl  = document.getElementById('sendBtn');
 const typingEl   = document.getElementById('typingIndicator');
+
+// Reply state
+let replyToMsg = null; // { who, text, element }
+
+// Context menu elements
+let contextMenuEl = null;
+let contextMenuTarget = null;
+
+function createContextMenu() {
+  if (contextMenuEl) return;
+  contextMenuEl = document.createElement('div');
+  contextMenuEl.className = 'context-menu';
+  contextMenuEl.innerHTML = `
+    <div class="context-menu-item reply-item" onclick="doReply()">
+      <svg viewBox="0 0 24 24"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+      Reply
+    </div>
+  `;
+  document.body.appendChild(contextMenuEl);
+  
+  // Close menu on outside click
+  document.addEventListener('click', (e) => {
+    if (contextMenuEl && !contextMenuEl.contains(e.target)) {
+      hideContextMenu();
+    }
+  });
+  
+  // Close on scroll
+  messagesEl.addEventListener('scroll', hideContextMenu);
+}
+
+function showContextMenu(x, y, target) {
+  createContextMenu();
+  contextMenuTarget = target;
+  // Position menu — keep within viewport
+  const menuW = 140, menuH = 44;
+  if (x + menuW > window.innerWidth) x = window.innerWidth - menuW - 8;
+  if (y + menuH > window.innerHeight) y = y - menuH;
+  contextMenuEl.style.left = x + 'px';
+  contextMenuEl.style.top = y + 'px';
+  contextMenuEl.classList.add('show');
+}
+
+function hideContextMenu() {
+  if (contextMenuEl) contextMenuEl.classList.remove('show');
+  contextMenuTarget = null;
+}
+
+function doReply() {
+  if (!contextMenuTarget) return;
+  const row = contextMenuTarget.closest('.msg-row');
+  if (!row) return;
+  const who = row.classList.contains('user') ? 'You' : 'Logan';
+  const bubble = row.querySelector('.msg-bubble');
+  const text = bubble ? bubble.textContent.trim() : '';
+  // Truncate long text for preview
+  const previewText = text.length > 60 ? text.substring(0, 57) + '...' : text;
+  
+  replyToMsg = { who, text, element: row };
+  
+  document.getElementById('replyPreviewWho').textContent = 'Replying to ' + who;
+  document.getElementById('replyPreviewText').textContent = previewText;
+  document.getElementById('replyPreview').classList.add('show');
+  
+  // Focus input
+  inputEl.focus();
+  hideContextMenu();
+}
+
+function cancelReply() {
+  replyToMsg = null;
+  document.getElementById('replyPreview').classList.remove('show');
+}
+
+// Add long-press listeners to message area
+function setupLongPress() {
+  let longPressTimer = null;
+  let startX = 0, startY = 0;
+  
+  messagesEl.addEventListener('touchstart', (e) => {
+    const bubble = e.target.closest('.msg-bubble');
+    if (!bubble) return;
+    const touch = e.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    longPressTimer = setTimeout(() => {
+      showContextMenu(startX, startY, bubble);
+      // Vibrate if supported
+      if (navigator.vibrate) navigator.vibrate(15);
+    }, 500);
+  }, { passive: true });
+  
+  messagesEl.addEventListener('touchmove', () => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  });
+  
+  messagesEl.addEventListener('touchend', () => {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  });
+  
+  // Desktop: right-click
+  messagesEl.addEventListener('contextmenu', (e) => {
+    const bubble = e.target.closest('.msg-bubble');
+    if (!bubble) return;
+    e.preventDefault();
+    showContextMenu(e.clientX, e.clientY, bubble);
+  });
+}
 
 const today = new Date();
 document.getElementById('todayDivider').textContent =
@@ -886,7 +1029,7 @@ function getRandomDelay(range) {
 }
 
 // ============================================================
-// SEND MESSAGE
+// SEND MESSAGE (with reply support)
 // ============================================================
 async function sendMessage() {
   const text = inputEl.value.trim();
@@ -894,12 +1037,25 @@ async function sendMessage() {
 
   if (!config.apiKey) { openSettings(); return; }
 
+  // Check if replying
+  let replyContext = '';
+  let replyRef = null;
+  if (replyToMsg) {
+    replyContext = `[Replying to ${replyToMsg.who}: "${replyToMsg.text}"] `;
+    replyRef = replyToMsg;
+  }
+
+  const fullText = replyContext + text;
+
   // 1. Append user message — show single ✓ (sent)
-  const userRow = appendMessage('user', text);
+  const userRow = appendMessage('user', fullText, replyRef);
   const readEl  = userRow.querySelector('.read-status');
   inputEl.value = '';
   toggleSendBtn();
   scrollToBottom();
+  
+  // Clear reply state
+  cancelReply();
 
   if (readEl) {
     readEl.textContent = '✓';
@@ -946,7 +1102,7 @@ async function sendMessage() {
     }
 
     // 7. Finally call API and append reply
-    const reply = await callLoganAPI(text);
+    const reply = await callLoganAPI(fullText);
     appendMessage('logan', reply);
 
     // 8. Desktop notification (if enabled and page not focused)
@@ -959,9 +1115,11 @@ async function sendMessage() {
   }
 }
 
-function appendMessage(who, text) {
+function appendMessage(who, text, replyRef) {
   const row = document.createElement('div');
   row.className = `msg-row ${who}`;
+  // Store message text as data attribute for reply reference
+  row.dataset.msgText = text;
 
   const time = new Date().toLocaleTimeString('en-US', {
     hour: 'numeric', minute: '2-digit', hour12: true
@@ -979,10 +1137,22 @@ function appendMessage(who, text) {
       ? `<div class="avatar-small user-avatar"><img src="${userAvatarSrc}" alt="" class="user-avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>`
       : '');
 
+  // Build reply reference HTML if replying
+  let replyRefHtml = '';
+  if (replyRef) {
+    const refWho = replyRef.who || 'Logan';
+    const refText = (replyRef.text || '').replace(/^\[Replying to .+?\]\s*/, ''); // strip nested reply markers
+    const refPreview = refText.length > 50 ? refText.substring(0, 47) + '...' : refText;
+    replyRefHtml = `<div class="reply-ref" onclick="jumpToMessage(this)" data-target-text="${escapeHtml(refText.substring(0, 30))}">
+      <div class="reply-ref-line"></div>
+      <div><div class="reply-ref-who">${escapeHtml(refWho)}</div><div class="reply-ref-text">${escapeHtml(refPreview)}</div></div>
+    </div>`;
+  }
+
   row.innerHTML = `
     <div class="msg-bubble-wrap">
       ${avatarHtml}
-      <div class="msg-bubble">${formatMessageContent(text)}</div>
+      <div class="msg-bubble">${replyRefHtml}${formatMessageContent(text)}</div>
     </div>
     <div class="msg-time">${time}${readHtml}</div>
   `;
@@ -1693,6 +1863,7 @@ async function restoreChatHistory() {
 function appendRestoredMessage(who, text) {
   const row = document.createElement('div');
   row.className = `msg-row ${who}`;
+  row.dataset.msgText = text;
   // For restored messages, user messages show as already read (✓✓ blue)
   const readHtml = who === 'user'
     ? `<span class="read-status read">✓✓</span>`
@@ -1774,14 +1945,43 @@ async function subscribeToPush() {
 registerSW();
 
 // ============================================================
+// JUMP TO MESSAGE (for reply reference clicks)
+// ============================================================
+function jumpToMessage(refEl) {
+  const targetText = refEl.dataset.targetText;
+  if (!targetText) return;
+  // Find the message row with matching text
+  const rows = messagesEl.querySelectorAll('.msg-row');
+  for (const row of rows) {
+    const msgText = row.dataset.msgText || '';
+    if (msgText.includes(targetText)) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('jump-highlight');
+      setTimeout(() => row.classList.remove('jump-highlight'), 1000);
+      return;
+    }
+  }
+}
+
+// ============================================================
 // INIT
 // ============================================================
 (async () => {
+  // Setup long press listeners
+  setupLongPress();
+  
+  // Apply avatar first (ensure header + all chat avatars match)
+  applyAvatar(currentAvatarIdx);
+  
   // Load user avatar and wallpaper on init
   loadUserAvatar();
   loadWallpaper();
   // Always restore chat history (independent of API key)
   await restoreChatHistory();
+  
+  // Re-apply avatar after history restore (ensures restored messages use correct avatar)
+  applyAvatar(currentAvatarIdx);
+  
   // Then check if API key is configured
   if (!config.apiKey) {
     setTimeout(openSettings, 500);
