@@ -66,8 +66,9 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 /* Settings overlay */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:100;justify-content:center;align-items:center}
 .overlay.show{display:flex}
-.settings-panel{background:#1C1C1E;width:88%;max-width:360px;border-radius:20px;padding:24px 20px;display:flex;flex-direction:column;gap:16px}
+.settings-panel{background:#1C1C1E;width:88%;max-width:360px;border-radius:20px;padding:24px 20px;display:flex;flex-direction:column;gap:14px;max-height:90vh;overflow-y:auto}
 .settings-panel h3{font-size:17px;font-weight:600;text-align:center;margin-bottom:4px}
+.settings-section-title{font-size:12px;color:#8E8E93;letter-spacing:0.5px;text-transform:uppercase;margin-top:4px;padding-left:2px}
 .setting-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .setting-row label{font-size:14px;color:#8E8E93;flex-shrink:0}
 .setting-row input,.setting-row select{flex:1;background:#2C2C2E;border:none;border-radius:10px;padding:9px 12px;color:#EDEDED;font-size:14px;outline:none}
@@ -77,6 +78,7 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 .status-msg{font-size:12.5px;text-align:center;margin-top:2px}
 .status-msg.ok{color:#4ADE80}
 .status-msg.err{color:#FF453A}
+.memory-badge{font-size:11px;color:#A855F7;text-align:center;padding:4px 0}
 </style>
 </head>
 <body>
@@ -123,6 +125,8 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 <div class="overlay" id="settingsOverlay">
   <div class="settings-panel">
     <h3>Settings</h3>
+
+    <div class="settings-section-title">AI Config</div>
     <div class="setting-row">
       <label>API Key</label>
       <input type="password" id="apiKeyInput" placeholder="sk-...">
@@ -138,9 +142,9 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
     </div>
     <div class="setting-row">
       <label>Endpoint</label>
-      <select id="providerSelect">
-        <option value="deepseek">DeepSeek (https://api.deepseek.com)</option>
-        <option value="openai">OpenAI (https://api.openai.com)</option>
+      <select id="providerSelect" onchange="toggleCustomUrl()">
+        <option value="deepseek">DeepSeek</option>
+        <option value="openai">OpenAI</option>
         <option value="custom">Custom...</option>
       </select>
     </div>
@@ -148,68 +152,158 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
       <label>URL</label>
       <input type="text" id="customUrlInput" placeholder="https://...">
     </div>
+
+    <div class="settings-section-title">Memory (Supabase)</div>
+    <div class="setting-row">
+      <label>Project URL</label>
+      <input type="text" id="supabaseUrlInput" placeholder="https://xxx.supabase.co">
+    </div>
+    <div class="setting-row">
+      <label>Anon Key</label>
+      <input type="password" id="supabaseKeyInput" placeholder="sb_publishable_...">
+    </div>
+    <div class="memory-badge" id="memoryBadge">☁️ Supabase: not configured</div>
+
     <div class="status-msg" id="statusMsg"></div>
     <button class="btn-save" onclick="saveSettings()">Save & Connect</button>
-    <button class="btn-save" style="background:#2C2C2E;color:#FF453A;margin-top:0" onclick="resetMemory()">🗑 Clear Chat Memory</button>
+    <button class="btn-save" style="background:#2C2C2E;color:#FF453A;margin-top:0" onclick="resetMemory()">🗑 Clear All Memory</button>
     <button class="btn-save" style="background:#2C2C2E;color:#8E8E93;margin-top:0" onclick="closeSettings()">Cancel</button>
   </div>
 </div>
 
 <script>
-// === STORAGE ===
+// ============================================================
+// STORAGE KEYS
+// ============================================================
 const STORAGE_KEY = 'logan_chat_config';
-const MEMORY_KEY = 'logan_chat_memory';
-const MAX_MEMORY = 30; // keep last 30 messages for context
+const MEMORY_KEY  = 'logan_chat_memory';
+const MAX_LOCAL   = 50;    // max messages kept in localStorage
+const MAX_CONTEXT = 30;    // messages sent to AI as context
 
+// ============================================================
+// CONFIG
+// ============================================================
 function loadConfig() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-  } catch(e) { return {}; }
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+  catch(e) { return {}; }
 }
-
 function saveConfig(cfg) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
 }
+let config = loadConfig();
 
-function loadMemory() {
-  try {
-    return JSON.parse(localStorage.getItem(MEMORY_KEY)) || [];
-  } catch(e) { return []; }
+// ============================================================
+// LOCAL MEMORY (fallback / cache)
+// ============================================================
+function loadLocalMemory() {
+  try { return JSON.parse(localStorage.getItem(MEMORY_KEY)) || []; }
+  catch(e) { return []; }
 }
-
-function saveMemory(history) {
-  // Keep only last MAX_MEMORY entries
-  if (history.length > MAX_MEMORY) {
-    history = history.slice(-MAX_MEMORY);
-  }
+function saveLocalMemory(history) {
+  if (history.length > MAX_LOCAL) history = history.slice(-MAX_LOCAL);
   localStorage.setItem(MEMORY_KEY, JSON.stringify(history));
 }
+function clearLocalMemory() { localStorage.removeItem(MEMORY_KEY); }
 
-function addToMemory(role, text) {
-  const history = loadMemory();
-  history.push({ role, content: text });
-  saveMemory(history);
+// ============================================================
+// SUPABASE MEMORY
+// ============================================================
+const SESSION_ID = localStorage.getItem('logan_session_id') || (() => {
+  const id = 'user_' + Math.random().toString(36).slice(2, 10);
+  localStorage.setItem('logan_session_id', id);
+  return id;
+})();
+
+function supabaseHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'apikey': config.supabaseKey,
+    'Authorization': 'Bearer ' + config.supabaseKey,
+    'Prefer': 'return=representation'
+  };
 }
 
-function clearMemory() {
-  localStorage.removeItem(MEMORY_KEY);
+async function sbInsert(role, content) {
+  if (!config.supabaseUrl || !config.supabaseKey) return;
+  try {
+    await fetch(`${config.supabaseUrl}/rest/v1/chat_memory`, {
+      method: 'POST',
+      headers: supabaseHeaders(),
+      body: JSON.stringify({ session_id: SESSION_ID, role, content })
+    });
+  } catch(e) { console.warn('Supabase insert failed:', e); }
 }
 
-let config = loadConfig();
-let chatHistory = loadMemory();
+async function sbFetchHistory(limit = MAX_CONTEXT) {
+  if (!config.supabaseUrl || !config.supabaseKey) return null;
+  try {
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}&order=created_at.desc&limit=${limit}`;
+    const resp = await fetch(url, { headers: supabaseHeaders() });
+    if (!resp.ok) return null;
+    const rows = await resp.json();
+    // reverse to get oldest→newest
+    return rows.reverse().map(r => ({ role: r.role, content: r.content }));
+  } catch(e) { console.warn('Supabase fetch failed:', e); return null; }
+}
 
-// === DOM REFS ===
+async function sbClearHistory() {
+  if (!config.supabaseUrl || !config.supabaseKey) return;
+  try {
+    await fetch(`${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}`, {
+      method: 'DELETE',
+      headers: supabaseHeaders()
+    });
+  } catch(e) { console.warn('Supabase delete failed:', e); }
+}
+
+// ============================================================
+// MEMORY: unified
+// ============================================================
+async function addMessage(role, content) {
+  // local
+  const local = loadLocalMemory();
+  local.push({ role, content });
+  saveLocalMemory(local);
+  // cloud
+  await sbInsert(role, content);
+}
+
+async function getHistory() {
+  const cloud = await sbFetchHistory(MAX_CONTEXT);
+  if (cloud && cloud.length > 0) {
+    updateMemoryBadge(cloud.length, true);
+    return cloud;
+  }
+  // fallback to local
+  const local = loadLocalMemory();
+  updateMemoryBadge(local.length, false);
+  return local.slice(-MAX_CONTEXT);
+}
+
+function updateMemoryBadge(count, isCloud) {
+  const badge = document.getElementById('memoryBadge');
+  if (!badge) return;
+  if (isCloud) {
+    badge.textContent = `☁️ Supabase: ${count} messages stored`;
+    badge.style.color = '#4ADE80';
+  } else {
+    badge.textContent = `💾 Local: ${count} messages (no Supabase)`;
+    badge.style.color = '#FFB340';
+  }
+}
+
+// ============================================================
+// DOM REFS
+// ============================================================
 const messagesEl = document.getElementById('messages');
-const inputEl = document.getElementById('msgInput');
-const sendBtnEl = document.getElementById('sendBtn');
-const typingEl = document.getElementById('typingIndicator');
+const inputEl    = document.getElementById('msgInput');
+const sendBtnEl  = document.getElementById('sendBtn');
+const typingEl   = document.getElementById('typingIndicator');
 
-// Today's date
 const today = new Date();
 document.getElementById('todayDivider').textContent =
   today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-// === ENTER TO SEND ===
 inputEl.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
@@ -218,7 +312,9 @@ function toggleSendBtn() {
   sendBtnEl.classList.toggle('active', inputEl.value.trim().length > 0);
 }
 
-// === SYSTEM PROMPT ===
+// ============================================================
+// SYSTEM PROMPT
+// ============================================================
 const SYSTEM_PROMPT = `You are John Logan from Elle Kennedy's Off Campus series. You are SINGLE. You're texting with someone you're getting to know — there's chemistry, tension, the early spark. You're interested but you're not gonna be obvious about it.
 
 RULES:
@@ -230,6 +326,7 @@ RULES:
 - Sound like Logan: direct, funny, cocky but not a jerk. Flirty but not desperate. Cool but warm underneath.
 - Hide vulnerability with humor. Actions over words. You show interest through what you do and ask, not cheesy lines.
 - Reference your life naturally: hockey, your friends (Garrett & Hannah, Tucker & Sabrina, Dean & Allie), Briar U, Boston, the Bruins.
+- USE the conversation history. If the user mentioned something before, Logan remembers. Reference it naturally.
 
 YOUR CORE TRAITS:
 - You're a former player who's ready for something real — but you don't know how to say that.
@@ -254,10 +351,12 @@ TONE EXAMPLES:
 
 IMPORTANT: Reply ONLY with the message text. No "Logan:", no formatting, no quotes around your reply. Just the exact words.`;
 
-// === API CALL ===
+// ============================================================
+// API CALL
+// ============================================================
 async function callLoganAPI(userMessage) {
   const provider = config.provider || 'deepseek';
-  const model = config.model || 'deepseek-chat';
+  const model    = config.model    || 'deepseek-chat';
   let apiUrl;
 
   if (provider === 'openai') {
@@ -268,10 +367,11 @@ async function callLoganAPI(userMessage) {
     apiUrl = 'https://api.deepseek.com/chat/completions';
   }
 
-  // Build messages with memory
+  // Build messages WITH history
+  const history = await getHistory();
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
-    ...chatHistory,  // include past conversation
+    ...history,
     { role: 'user', content: userMessage }
   ];
 
@@ -290,38 +390,31 @@ async function callLoganAPI(userMessage) {
   });
 
   const data = await resp.json();
-
-  if (data.error) {
-    throw new Error(data.error.message || 'API error');
-  }
+  if (data.error) throw new Error(data.error.message || 'API error');
 
   const reply = data.choices?.[0]?.message?.content?.trim() || '...';
 
-  // Save to memory
-  addToMemory('user', userMessage);
-  addToMemory('assistant', reply);
-  chatHistory = loadMemory();
+  // Save exchange to memory
+  await addMessage('user', userMessage);
+  await addMessage('assistant', reply);
 
   return reply;
 }
 
-// === SEND MESSAGE ===
+// ============================================================
+// SEND MESSAGE
+// ============================================================
 async function sendMessage() {
   const text = inputEl.value.trim();
   if (!text) return;
 
-  if (!config.apiKey) {
-    openSettings();
-    return;
-  }
+  if (!config.apiKey) { openSettings(); return; }
 
-  // Append user message
   appendMessage('user', text);
   inputEl.value = '';
   toggleSendBtn();
   scrollToBottom();
 
-  // Show typing
   typingEl.classList.add('show');
   scrollToBottom();
 
@@ -329,7 +422,7 @@ async function sendMessage() {
     const reply = await callLoganAPI(text);
     typingEl.classList.remove('show');
     appendMessage('logan', reply);
-  } catch (e) {
+  } catch(e) {
     typingEl.classList.remove('show');
     appendMessage('logan', 'Shit, bad connection. Try again?');
     console.error('API error:', e);
@@ -356,9 +449,7 @@ function appendMessage(who, text) {
 }
 
 function scrollToBottom() {
-  requestAnimationFrame(() => {
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  });
+  requestAnimationFrame(() => { messagesEl.scrollTop = messagesEl.scrollHeight; });
 }
 
 function escapeHtml(s) {
@@ -367,13 +458,23 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
-// === SETTINGS ===
+// ============================================================
+// SETTINGS
+// ============================================================
 function openSettings() {
-  document.getElementById('apiKeyInput').value = config.apiKey ? '••••••••' : '';
-  document.getElementById('providerSelect').value = config.provider || 'deepseek';
-  document.getElementById('modelSelect').value = config.model || 'deepseek-chat';
-  document.getElementById('customUrlInput').value = config.customUrl || '';
+  document.getElementById('apiKeyInput').value     = config.apiKey ? '••••••••' : '';
+  document.getElementById('providerSelect').value  = config.provider || 'deepseek';
+  document.getElementById('modelSelect').value     = config.model || 'deepseek-chat';
+  document.getElementById('customUrlInput').value  = config.customUrl || '';
+  document.getElementById('supabaseUrlInput').value = config.supabaseUrl || '';
+  document.getElementById('supabaseKeyInput').value = config.supabaseKey ? '••••••••••••' : '';
   toggleCustomUrl();
+  // refresh badge
+  if (config.supabaseUrl && config.supabaseKey) {
+    sbFetchHistory(1).then(h => {
+      if (h !== null) updateMemoryBadge('?', true);
+    });
+  }
   document.getElementById('settingsOverlay').classList.add('show');
 }
 
@@ -386,26 +487,29 @@ function toggleCustomUrl() {
   row.style.display = document.getElementById('providerSelect').value === 'custom' ? 'flex' : 'none';
 }
 
-document.getElementById('providerSelect').addEventListener('change', toggleCustomUrl);
-
 async function saveSettings() {
-  const key = document.getElementById('apiKeyInput').value.trim();
-  const provider = document.getElementById('providerSelect').value;
-  const model = document.getElementById('modelSelect').value;
-  const customUrl = document.getElementById('customUrlInput').value.trim();
-  const msgEl = document.getElementById('statusMsg');
+  const apiKey      = document.getElementById('apiKeyInput').value.trim();
+  const provider    = document.getElementById('providerSelect').value;
+  const model       = document.getElementById('modelSelect').value;
+  const customUrl   = document.getElementById('customUrlInput').value.trim();
+  const sbUrl       = document.getElementById('supabaseUrlInput').value.trim().replace(/\/$/, '');
+  const sbKey       = document.getElementById('supabaseKeyInput').value.trim();
+  const msgEl       = document.getElementById('statusMsg');
 
   const newConfig = { provider, model };
 
-  if (key && !key.includes('•')) {
-    newConfig.apiKey = key;
-  } else {
-    newConfig.apiKey = config.apiKey;
-  }
+  // API key
+  if (apiKey && !apiKey.includes('•')) newConfig.apiKey = apiKey;
+  else newConfig.apiKey = config.apiKey;
 
-  if (provider === 'custom') {
-    newConfig.customUrl = customUrl;
-  }
+  if (provider === 'custom') newConfig.customUrl = customUrl;
+
+  // Supabase
+  if (sbUrl) newConfig.supabaseUrl = sbUrl;
+  else newConfig.supabaseUrl = config.supabaseUrl;
+
+  if (sbKey && !sbKey.includes('•')) newConfig.supabaseKey = sbKey;
+  else newConfig.supabaseKey = config.supabaseKey;
 
   if (!newConfig.apiKey) {
     msgEl.textContent = 'Please enter an API key';
@@ -413,38 +517,83 @@ async function saveSettings() {
     return;
   }
 
-  // Quick test
-  msgEl.textContent = 'Testing connection...';
-  msgEl.className = 'status-msg';
-
   config = { ...config, ...newConfig };
   saveConfig(config);
 
+  msgEl.textContent = 'Testing connection...';
+  msgEl.className = 'status-msg';
+
   try {
-    await callLoganAPI('test');
-    msgEl.textContent = 'Connected!';
+    // Test AI
+    const provider2 = config.provider || 'deepseek';
+    let testUrl = provider2 === 'openai' ? 'https://api.openai.com/v1/chat/completions'
+                : provider2 === 'custom'  ? (config.customUrl || 'https://api.deepseek.com/chat/completions')
+                : 'https://api.deepseek.com/chat/completions';
+
+    const testResp = await fetch(testUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.apiKey}` },
+      body: JSON.stringify({
+        model: config.model || 'deepseek-chat',
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 5
+      })
+    });
+    const testData = await testResp.json();
+    if (testData.error) throw new Error(testData.error.message);
+
+    // Test Supabase if configured
+    if (config.supabaseUrl && config.supabaseKey) {
+      const sbTest = await sbFetchHistory(1);
+      if (sbTest !== null) {
+        msgEl.textContent = '✓ AI + Supabase connected!';
+      } else {
+        msgEl.textContent = '✓ AI connected. Supabase: check URL/key';
+      }
+    } else {
+      msgEl.textContent = '✓ Connected! (local memory only)';
+    }
     msgEl.className = 'status-msg ok';
-    setTimeout(closeSettings, 800);
-  } catch (e) {
-    msgEl.textContent = 'API error: ' + e.message;
+    setTimeout(closeSettings, 1200);
+  } catch(e) {
+    msgEl.textContent = 'Error: ' + e.message;
     msgEl.className = 'status-msg err';
   }
 }
 
-function resetMemory() {
-  clearMemory();
-  chatHistory = [];
+async function resetMemory() {
+  clearLocalMemory();
+  await sbClearHistory();
   document.getElementById('statusMsg').textContent = 'Memory cleared!';
   document.getElementById('statusMsg').className = 'status-msg ok';
+  updateMemoryBadge(0, !!config.supabaseKey);
 }
 
-// === INIT ===
-if (config.apiKey) {
-  // Already configured
-  document.getElementById('statusText').textContent = 'active now';
-} else {
-  setTimeout(openSettings, 500);
-}
+// ============================================================
+// INIT
+// ============================================================
+(async () => {
+  if (!config.apiKey) {
+    setTimeout(openSettings, 500);
+  } else {
+    document.getElementById('statusText').textContent = 'active now';
+    // update badge on load
+    if (config.supabaseUrl && config.supabaseKey) {
+      const h = await sbFetchHistory(1);
+      if (h !== null) {
+        // get count
+        try {
+          const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}&select=id`;
+          const r = await fetch(url, {
+            headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' }
+          });
+          const count = r.headers.get('content-range')?.split('/')[1] || '?';
+          updateMemoryBadge(count, true);
+        } catch(e) { updateMemoryBadge('?', true); }
+      }
+    }
+  }
+})();
 </script>
 </body>
 </html>
