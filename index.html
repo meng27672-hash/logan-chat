@@ -1056,9 +1056,7 @@ async function callLoganAPI(userMessage) {
     })
   }).then(r => r.json());
 
-  // Edge Function call — don't block on it, fire and collect later
-  let edgePromise = null;
-  if (pushSubscription && config.edgeFunctionUrl) {
+    // Edge Function call — passes session_id so Edge Function can find push subscription
     edgePromise = fetch(config.edgeFunctionUrl, {
       method: 'POST',
       headers: {
@@ -1068,13 +1066,8 @@ async function callLoganAPI(userMessage) {
       body: JSON.stringify({
         message: userMessage,
         history: recentMessages.slice(-20),
-        pushSubscription: pushSubscription
+        session_id: SESSION_ID
       })
-    }).then(r => r.json()).catch(e => {
-      console.warn('Edge Function call failed (non-critical):', e);
-      return null;
-    });
-  }
 
   // Wait for local API (primary)
   const data = await localPromise;
@@ -1086,14 +1079,21 @@ async function callLoganAPI(userMessage) {
   await addMessage('user', userMessage);
   await addMessage('assistant', reply);
 
-  // Collect Edge Function result (don't block — it's just for push notification)
-  if (edgePromise) {
-    edgePromise.then(efResult => {
-      if (efResult && efResult.pushSent) {
-        console.log('Push notification sent via Edge Function');
-      }
-    });
-  }
+    // Collect Edge Function result (don't block — it's just for push notification)
+    if (edgePromise) {
+      edgePromise.then(async (efResponse) => {
+        try {
+          const efResult = await efResponse.json();
+          if (efResult && efResult.pushSent) {
+            console.log('Push notification sent via Edge Function');
+          }
+        } catch(e) {
+          console.warn('Edge Function response parse failed:', e);
+        }
+      }).catch(e => {
+        console.warn('Edge Function call failed (non-critical):', e);
+      });
+    }
 
   return reply;
 }
@@ -2132,12 +2132,18 @@ function urlBase64ToUint8Array(base64String) {
 async function savePushSubscription(sub) {
   if (!config.supabaseUrl || !config.supabaseKey) return;
   try {
-    await fetch(`${config.supabaseUrl}/rest/v1/push_subscriptions`, {
+    // Upsert by endpoint (unique)
+    await fetch(`${config.supabaseUrl}/rest/v1/push_subscriptions?on_conflict=endpoint`, {
       method: 'POST',
-      headers: supabaseHeaders(),
+      headers: {
+        ...supabaseHeaders(),
+        'Prefer': 'resolution=merge-duplicates'
+      },
       body: JSON.stringify({
-        session_id: SESSION_ID,
-        subscription: sub,
+        endpoint: sub.endpoint,
+        p256dh: sub.keys.p256dh,
+        auth: sub.keys.auth,
+        user_id: SESSION_ID,
         updated_at: new Date().toISOString()
       })
     });
