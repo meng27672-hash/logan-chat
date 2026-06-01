@@ -70,14 +70,14 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 @keyframes blink{0%,60%,100%{opacity:0.3}30%{opacity:1}}
 
 /* Input area */
-.input-area{display:flex;align-items:center;padding:8px 12px 8px;gap:10px;background:#000;border-top:0.5px solid #1C1C1E;flex-shrink:0;position:sticky;bottom:0;z-index:10}
+.input-area{display:flex;align-items:flex-end;padding:12px 12px 12px;gap:10px;background:#000;border-top:0.5px solid #1C1C1E;flex-shrink:0;position:sticky;bottom:0;z-index:10;min-height:52px}
 .input-btn{background:none;border:none;color:#fff;cursor:pointer;padding:4px;opacity:0.9;display:flex;align-items:center;justify-content:center}
 .input-btn svg{width:22px;height:22px;fill:#fff}
-.input-box{flex:1;background:#1C1C1E;border:none;border-radius:20px;padding:9px 16px;color:#EDEDED;font-size:15.5px;outline:none}
+.input-box{flex:1;background:#1C1C1E;border:none;border-radius:20px;padding:12px 16px;color:#EDEDED;font-size:15.5px;outline:none;min-height:20px;max-height:100px;resize:none;line-height:1.4}
 .input-box::placeholder{color:#8E8E93}
-.send-btn{background:linear-gradient(135deg,#7C3AED,#A855F7);border:none;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;opacity:0.4;transition:opacity 0.2s}
-.send-btn svg{width:14px;height:14px;fill:#fff}
-.send-btn.active{opacity:1}
+.send-btn{background:linear-gradient(135deg,#7C3AED,#A855F7);border:none;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;opacity:0.85;transition:opacity 0.2s,transform 0.15s}
+.send-btn svg{width:15px;height:15px;fill:#fff}
+.send-btn.active{opacity:1;transform:scale(1.05)}
 
 /* Settings overlay */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:100;justify-content:center;align-items:center}
@@ -439,11 +439,24 @@ const MAX_CONTEXT = 30;    // messages sent to AI as context
 // ============================================================
 // CONFIG
 // ============================================================
+// Default config — ensures app works even if localStorage is cleared
+const DEFAULT_CONFIG = {
+  apiKey: 'sk-aa48b4f1a1b14582bb3c373aa09ea7ea',
+  provider: 'deepseek',
+  model: 'deepseek-chat',
+  supabaseUrl: 'https://itqbuejzektzszwrnnlm.supabase.co',
+  supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0cWJ1ZWp6ZWt0enN6d3JubmxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg3MzA4NjUsImV4cCI6MjA2NDMwNjg2NX0.tFqIsAS_jFJW6hUvybCJAv0NqXqR2XO3LxPcQNRHXPY'
+};
+
 function loadConfig() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
-  catch(e) { return {}; }
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    // Merge with defaults — saved values take priority
+    return { ...DEFAULT_CONFIG, ...saved };
+  } catch(e) { return { ...DEFAULT_CONFIG }; }
 }
 function saveConfig(cfg) {
+  // Only save overrides (not defaults) to localStorage
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
 }
 let config = loadConfig();
@@ -1776,7 +1789,154 @@ registerSW();
     document.getElementById('statusText').textContent = 'active now';
     renderStickerGrid();
   }
+
+  // Start proactive message checker
+  startProactiveChecker();
 })();
+
+// ============================================================
+// PROACTIVE MESSAGES — Logan reaches out on his own
+// ============================================================
+// This simulates Logan randomly thinking of you and texting first.
+// It works when the page is open (foreground) — checks every 30s
+// and triggers after a random quiet period (5 min – 2 hours).
+
+let proactiveTimer = null;
+let proactiveMinGap = 5 * 60 * 1000;       // min 5 min quiet before first proactive
+let proactiveMaxGap = 120 * 60 * 1000;     // max 2 hours
+let proactiveCheckMs = 30 * 1000;          // check every 30 seconds
+let proactiveNextAt = null;                // when the next proactive message is scheduled
+let proactivePaused = false;
+
+function getLastMessageTime() {
+  const local = loadLocalMemory();
+  if (local.length === 0) return 0;
+  return new Date(local[local.length - 1].created_at || local[local.length - 1].timestamp || 0).getTime();
+}
+
+function scheduleNextProactive() {
+  // Random delay between minGap and maxGap
+  const gap = proactiveMinGap + Math.random() * (proactiveMaxGap - proactiveMinGap);
+  proactiveNextAt = Date.now() + gap;
+  console.log(`[Proactive] Next message scheduled at ${new Date(proactiveNextAt).toLocaleTimeString()} (in ~${Math.round(gap/60000)} min)`);
+}
+
+async function checkProactive() {
+  if (proactivePaused) return;
+  if (!config.apiKey) return; // no API key = can't generate messages
+
+  const now = Date.now();
+  const lastMsgTime = getLastMessageTime();
+
+  // If never scheduled, set initial schedule
+  if (!proactiveNextAt) {
+    scheduleNextProactive();
+    return;
+  }
+
+  // Not time yet
+  if (now < proactiveNextAt) return;
+
+  // Check: is the last message from Logan? If so, don't double-text
+  const local = loadLocalMemory();
+  if (local.length > 0) {
+    const lastMsg = local[local.length - 1];
+    if (lastMsg.role === 'assistant') {
+      // Logan sent the last message — wait for user to reply
+      scheduleNextProactive();
+      return;
+    }
+  }
+
+  // It's time! Generate a proactive message
+  console.log('[Proactive] Triggering message...');
+  proactivePaused = true; // pause while generating
+
+  try {
+    // Build a prompt asking Logan to initiate conversation
+    const { recentMessages, memoryContext } = await getMemoryForMessage('__PROACTIVE__');
+
+    let fullSystemPrompt = SYSTEM_PROMPT + `\n\nCRITICAL: You are initiating a conversation. The other person hasn't texted in a while. You're thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you're just wondering what they're up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven't heard from you". Just start talking like you just thought of them.`;
+    if (memoryContext) {
+      fullSystemPrompt += `\n\nMEMORY CONTEXT:${memoryContext}`;
+    }
+
+    // Pick a random opener style
+    const openers = [
+      "Send ONE short message (1-2 sentences) initiating conversation. You just thought of something that reminded you of them.",
+      "Send ONE short message (1-2 sentences) — you're bored and wondering what they're up to.",
+      "Send ONE short message (1-2 sentences) — you saw/heard something funny and want to share it with them.",
+      "Send ONE short message (1-2 sentences) — you're in a good mood and felt like texting them.",
+      "Send ONE short message (1-2 sentences) — it's late and you can't sleep, they crossed your mind.",
+      "Send ONE short message (1-2 sentences) — you want to make plans or hang out soon."
+    ];
+    const opener = openers[Math.floor(Math.random() * openers.length)];
+
+    const messages = [
+      { role: 'system', content: fullSystemPrompt },
+      ...recentMessages.slice(-10),
+      { role: 'user', content: opener }
+    ];
+
+    const apiUrl = config.provider === 'custom' ? config.customUrl : 'https://api.deepseek.com/chat/completions';
+    const model = config.model || 'deepseek-chat';
+    const resp = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        temperature: 0.9,
+        max_tokens: 100
+      })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const reply = data.choices?.[0]?.message?.content?.trim();
+    if (reply && reply.length > 0) {
+      // Show "Logan is typing..." briefly
+      typingEl.classList.add('show');
+      scrollToBottom();
+      await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
+      typingEl.classList.remove('show');
+
+      appendMessage('logan', reply);
+      await addMessage('assistant', reply);
+
+      // Send notification
+      sendDesktopNotification('Logan', reply);
+    }
+  } catch(e) {
+    console.warn('[Proactive] Failed:', e);
+  }
+
+  // Schedule next one
+  scheduleNextProactive();
+  proactivePaused = false;
+}
+
+function startProactiveChecker() {
+  if (proactiveTimer) clearInterval(proactiveTimer);
+  if (!config.apiKey) return;
+
+  // Initial schedule
+  scheduleNextProactive();
+
+  // Check periodically
+  proactiveTimer = setInterval(checkProactive, proactiveCheckMs);
+
+  // Also check when page becomes visible again
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      // Page is visible again — force a check
+      checkProactive();
+    }
+  });
+}
 </script>
 </body>
 </html>
