@@ -1,8 +1,8 @@
 // Service Worker for John Logan Chat
-// Enables PWA install + push notification support
-// v4: Network First strategy (always fetch latest, cache as fallback)
+// Enables PWA install + Web Push notifications
+// v5: Network First + Push notification support
 
-const CACHE_NAME = 'logan-chat-v4';
+const CACHE_NAME = 'logan-chat-v5';
 const BASE = '/logan-chat/';
 
 const ASSETS = [
@@ -97,11 +97,11 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: BASE + 'icon.svg',
-    badge: BASE + 'icon.svg',
-    tag: 'logan-reply',
+    icon: BASE + 'icon-192.png',
+    badge: BASE + 'icon-192.png',
+    tag: data.tag || 'logan-reply',
     vibrate: [200, 100, 200],
-    data: { url: BASE },
+    data: { url: data.url || BASE },
     requireInteraction: false,
   };
 
