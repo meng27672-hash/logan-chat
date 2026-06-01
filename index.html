@@ -1038,17 +1038,15 @@ async function sendMessage() {
   if (!config.apiKey) { openSettings(); return; }
 
   // Check if replying
-  let replyContext = '';
+  let apiText = text;        // What AI sees (with reply context)
   let replyRef = null;
   if (replyToMsg) {
-    replyContext = `[Replying to ${replyToMsg.who}: "${replyToMsg.text}"] `;
+    apiText = `[You are replying to ${replyToMsg.who}'s message: "${replyToMsg.text}"]\nYour reply: ${text}`;
     replyRef = replyToMsg;
   }
 
-  const fullText = replyContext + text;
-
-  // 1. Append user message — show single ✓ (sent)
-  const userRow = appendMessage('user', fullText, replyRef);
+  // 1. Append user message — show the actual text only, NOT the [Replying to...] prefix
+  const userRow = appendMessage('user', text, replyRef);
   const readEl  = userRow.querySelector('.read-status');
   inputEl.value = '';
   toggleSendBtn();
@@ -1101,8 +1099,8 @@ async function sendMessage() {
       typingEl.classList.remove('show');
     }
 
-    // 7. Finally call API and append reply
-    const reply = await callLoganAPI(fullText);
+    // 7. Finally call API and append reply (use apiText which includes reply context for AI)
+    const reply = await callLoganAPI(apiText);
     appendMessage('logan', reply);
 
     // 8. Desktop notification (if enabled and page not focused)
