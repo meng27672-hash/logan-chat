@@ -2085,6 +2085,12 @@ function jumpToMessage(refEl) {
   // Setup long press listeners
   setupLongPress();
   
+  // Register Service Worker (for PWA + notifications)
+  await registerSW();
+  
+  // Load notification settings
+  loadNotifySettings();
+  
   // Apply avatar first (ensure header + all chat avatars match)
   applyAvatar(currentAvatarIdx);
   
@@ -2223,7 +2229,7 @@ async function checkProactive() {
       await addMessage('assistant', reply);
 
       // Send notification
-      sendDesktopNotification('Logan', reply);
+      sendDesktopNotification(reply);
     }
   } catch(e) {
     console.warn('[Proactive] Failed:', e);
