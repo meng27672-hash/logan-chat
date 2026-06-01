@@ -1,32 +1,35 @@
 // Service Worker for John Logan Chat
 // Enables PWA install + push notification support
 
-const CACHE_NAME = 'logan-chat-v2';
+const CACHE_NAME = 'logan-chat-v3';
+const BASE = '/logan-chat/';
+
 const ASSETS = [
-  './standalone.html',
-  './manifest.json',
-  './memes/laughing_leo.jpg',
-  './memes/smug_wonka.jpg',
-  './memes/shocked_guy.jpg',
-  './memes/cry_cat.jpg',
-  './memes/disgusted_homelander.jpg',
-  './memes/bald_guy_stare.jpg',
-  './memes/surprised_pikachu.png',
-  './memes/distracted_boyfriend.jpg',
-  './memes/expanding_brain.jpg',
-  './memes/roll_safe.jpg',
-  './memes/this_is_fine.jpg',
-  './memes/change_my_mind.jpg',
-  './memes/crying_jordan.jpg',
-  './memes/disaster_girl.png',
-  './memes/shrug.jpg',
-  './memes/girl_explaining.jpg',
-  './memes/pointing_rick.jpg',
-  './memes/kermit_tea.jpg',
-  './memes/scumbag_steve.jpg',
-  './memes/staring_guy.jpg',
-  './memes/elmo_coke.jpg',
-  './memes/mother_ignoring.jpg',
+  BASE,
+  BASE + 'manifest.json',
+  BASE + 'icon.svg',
+  BASE + 'memes/laughing_leo.jpg',
+  BASE + 'memes/smug_wonka.jpg',
+  BASE + 'memes/shocked_guy.jpg',
+  BASE + 'memes/cry_cat.jpg',
+  BASE + 'memes/disgusted_homelander.jpg',
+  BASE + 'memes/bald_guy_stare.jpg',
+  BASE + 'memes/surprised_pikachu.png',
+  BASE + 'memes/distracted_boyfriend.jpg',
+  BASE + 'memes/expanding_brain.jpg',
+  BASE + 'memes/roll_safe.jpg',
+  BASE + 'memes/this_is_fine.jpg',
+  BASE + 'memes/change_my_mind.jpg',
+  BASE + 'memes/crying_jordan.jpg',
+  BASE + 'memes/disaster_girl.png',
+  BASE + 'memes/shrug.jpg',
+  BASE + 'memes/girl_explaining.jpg',
+  BASE + 'memes/pointing_rick.jpg',
+  BASE + 'memes/kermit_tea.jpg',
+  BASE + 'memes/scumbag_steve.jpg',
+  BASE + 'memes/staring_guy.jpg',
+  BASE + 'memes/elmo_coke.jpg',
+  BASE + 'memes/mother_ignoring.jpg',
 ];
 
 // Install - cache all assets
@@ -34,7 +37,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS).catch((err) => {
-        console.log('SW: Cache addAll partial failure (some assets may be offline):', err);
+        console.log('SW: Cache addAll partial failure:', err);
       });
     })
   );
@@ -56,10 +59,11 @@ self.addEventListener('activate', (event) => {
 // Fetch - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  // Don't cache API calls
+  if (event.request.url.includes('api.')) return fetch(event.request);
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
-        // Cache new successful responses
         if (response.status === 200) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -85,13 +89,12 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: './memes/surprised_pikachu.png',
-    badge: './memes/surprised_pikachu.png',
+    icon: BASE + 'icon.svg',
+    badge: BASE + 'icon.svg',
     tag: 'logan-reply',
     vibrate: [200, 100, 200],
-    data: { url: './standalone.html' },
+    data: { url: BASE },
     requireInteraction: false,
-    silent: false,
   };
 
   event.waitUntil(
@@ -102,17 +105,15 @@ self.addEventListener('push', (event) => {
 // Notification click - focus/open the app
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || './standalone.html';
+  const url = event.notification.data?.url || BASE;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window is already open, focus it
       for (const client of clientList) {
-        if (client.url.includes('standalone.html') && 'focus' in client) {
+        if (client.url.includes('logan-chat') && 'focus' in client) {
           return client.focus();
         }
       }
-      // Otherwise open a new window
       if (clients.openWindow) {
         return clients.openWindow(url);
       }
