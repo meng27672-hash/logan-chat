@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.1.0">
+<meta name="version" content="v4.1.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1239,12 +1239,21 @@ function startPendingPolling() {
   pendingPollInterval = setInterval(pollPendingReplies, 30000); // Every 30 seconds
 }
 
+let isProcessing = false;
+
 // ============================================================
-// SEND MESSAGE (v4.0: with realistic schedule + backend-pending flow)
+// SEND MESSAGE (v4.1: realistic schedule + backend-pending + no status popup + debounce)
 // ============================================================
 async function sendMessage() {
+  if (isProcessing) {
+    console.log('[sendMessage] Already processing, ignoring duplicate send');
+    return;
+  }
+  isProcessing = true;
+
   const text = inputEl.value.trim();
-  if (!text) return;
+  if (!text) { isProcessing = false; return; }
+  if (!config.apiKey) { isProcessing = false; openSettings(); return; }
 
   if (!config.apiKey) { openSettings(); return; }
 
@@ -1306,6 +1315,7 @@ async function sendMessage() {
       appendMessage('logan', reply);
       await addMessage('assistant', reply);
       sendDesktopNotification(reply);
+      isProcessing = false;
 
     } else {
       // SLOW PATH: Logan is asleep/busy/practicing — store as pending
@@ -1313,12 +1323,6 @@ async function sendMessage() {
       const scheduledAt = new Date(Date.now() + delayMin).toISOString();
 
       console.log(`[Logan schedule: ${range.label}, pending delay: ${(delayMin/60000).toFixed(0)}min, scheduled: ${scheduledAt}]`);
-
-      // Show status
-      const statusText = getLoganStatus();
-      if (readEl) {
-        readEl.dataset.statusText = statusText;
-      }
 
       // Store in Supabase
       if (config.supabaseUrl && config.supabaseKey) {
@@ -1344,20 +1348,18 @@ async function sendMessage() {
             console.log(`[Pending] Stored #${pid}, scheduled for ${scheduledAt}`);
           } else {
             console.warn('[Pending] Failed to store:', result);
-            appendMessage('logan', `[${statusText}]`, null, true);
           }
         } catch (e) {
           console.warn('[Pending] Store error:', e);
         }
-      } else {
-        // No Supabase — just show status text
-        appendMessage('logan', `[${statusText}]`, null, true);
       }
+      isProcessing = false;
     }
   } catch(e) {
     typingEl.classList.remove('show');
     appendMessage('logan', 'Shit, bad connection. Try again?');
     console.error('API error:', e);
+    isProcessing = false;
   }
 }
 
