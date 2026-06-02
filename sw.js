@@ -1,51 +1,38 @@
 // Service Worker for John Logan Chat
 // Enables PWA install + Web Push notifications
-// v5: Network First + Push notification support
+// v6: Robust install — only precache critical files, meme files cached on-demand
 
-const CACHE_NAME = 'logan-chat-v5';
+const CACHE_NAME = 'logan-chat-v6';
 const BASE = '/logan-chat/';
 
-const ASSETS = [
+// Only precache the absolute minimum needed for PWA install + offline shell
+const CRITICAL_ASSETS = [
   BASE,
   BASE + 'index.html',
   BASE + 'manifest.webmanifest',
   BASE + 'icon-192.png',
   BASE + 'icon-512.png',
-  BASE + 'icon.svg',
-  BASE + 'memes/laughing_leo.jpg',
-  BASE + 'memes/smug_wonka.jpg',
-  BASE + 'memes/shocked_guy.jpg',
-  BASE + 'memes/cry_cat.jpg',
-  BASE + 'memes/disgusted_homelander.jpg',
-  BASE + 'memes/bald_guy_stare.jpg',
-  BASE + 'memes/surprised_pikachu.png',
-  BASE + 'memes/distracted_boyfriend.jpg',
-  BASE + 'memes/expanding_brain.jpg',
-  BASE + 'memes/roll_safe.jpg',
-  BASE + 'memes/this_is_fine.jpg',
-  BASE + 'memes/change_my_mind.jpg',
-  BASE + 'memes/crying_jordan.jpg',
-  BASE + 'memes/disaster_girl.png',
-  BASE + 'memes/shrug.jpg',
-  BASE + 'memes/girl_explaining.jpg',
-  BASE + 'memes/pointing_rick.jpg',
-  BASE + 'memes/kermit_tea.jpg',
-  BASE + 'memes/scumbag_steve.jpg',
-  BASE + 'memes/staring_guy.jpg',
-  BASE + 'memes/elmo_coke.jpg',
-  BASE + 'memes/mother_ignoring.jpg',
 ];
 
-// Install - cache all assets
+// Install — precache only critical files (failures here would block PWA install)
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS).catch((err) => {
-        console.log('SW: Cache addAll partial failure:', err);
-      });
+      return Promise.allSettled(
+        CRITICAL_ASSETS.map((url) =>
+          fetch(url, { cache: 'no-cache' }).then((resp) => {
+            if (resp.ok) return cache.put(url, resp);
+            console.warn('SW: Failed to precache', url, resp.status);
+          }).catch((err) => {
+            console.warn('SW: Failed to fetch', url, err.message);
+          })
+        )
+      );
+    }).then(() => {
+      // Only skip waiting AFTER critical assets are cached
+      return self.skipWaiting();
     })
   );
-  self.skipWaiting();
 });
 
 // Activate - clean old caches
