@@ -2,22 +2,22 @@
   "name": "John Logan",
   "short_name": "Logan",
   "description": "Chat with John Logan",
-  "start_url": "https://meng27672-hash.github.io/logan-chat/?utm_source=pwa",
-  "scope": "https://meng27672-hash.github.io/logan-chat/",
-  "id": "https://meng27672-hash.github.io/logan-chat/",
+  "start_url": "/logan-chat/?utm_source=pwa",
+  "scope": "/logan-chat/",
+  "id": "/logan-chat/",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "https://meng27672-hash.github.io/logan-chat/icon-512.png",
+      "src": "/logan-chat/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "https://meng27672-hash.github.io/logan-chat/icon-192.png",
+      "src": "/logan-chat/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
