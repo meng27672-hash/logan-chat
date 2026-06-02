@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.2.6">
+<meta name="version" content="v4.2.7">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1622,7 +1622,7 @@ async function syncFromCloud() {
     if (msgEl) { msgEl.textContent = '⚠️ Supabase not configured. Set up in AI & Memory Config first.'; msgEl.className = 'status-msg warn'; }
     return;
   }
-  if (msgEl) { msgEl.textContent = '⏳ Syncing from cloud...'; msgEl.className = 'status-msg'; }
+  if (msgEl) { msgEl.textContent = 'Syncing from cloud...'; msgEl.className = 'status-msg'; }
   try {
     // Clear existing messages before re-rendering
     const messagesEl = document.getElementById('messages');
@@ -1630,9 +1630,10 @@ async function syncFromCloud() {
     existing.forEach(el => el.remove());
     _historyRestored = false;
     await restoreChatHistory(true);
-    if (msgEl) { msgEl.textContent = '✓ Synced!'; msgEl.className = 'status-msg ok'; }
+    const src = _cloudAvailable ? 'cloud' : 'local storage';
+    if (msgEl) { msgEl.textContent = `Synced from ${src}`; msgEl.className = _cloudAvailable ? 'status-msg ok' : 'status-msg warn'; }
   } catch(e) {
-    if (msgEl) { msgEl.textContent = '✗ Sync failed. Check your connection.'; msgEl.className = 'status-msg warn'; }
+    if (msgEl) { msgEl.textContent = 'Sync failed. Check your connection.'; msgEl.className = 'status-msg warn'; }
   }
   setTimeout(closeSettings, 1500);
 }
@@ -2200,17 +2201,21 @@ async function triggerLoganReply(contextNote) {
 // RESTORE CHAT HISTORY
 // ============================================================
 let _historyRestored = false;
+let _cloudAvailable = null; // null=unchecked, true=ok, false=down
 
 async function restoreChatHistory(force = false) {
   // Skip if already restored (prevent duplicate rendering on sync button)
   if (_historyRestored && !force) return;
   let history = null;
+  let cloudOk = false;
+  let cloudError = null;
   // Try Supabase first
   if (config.supabaseUrl && config.supabaseKey) {
     const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}&order=created_at.asc&limit=200&select=role,content`;
     try {
       const resp = await fetch(url, { headers: supabaseHeaders() });
       if (resp.ok) {
+        cloudOk = true;
         const rows = await resp.json();
         if (rows.length > 0) {
           history = rows;
@@ -2224,9 +2229,13 @@ async function restoreChatHistory(force = false) {
             updateMemoryBadge(count, true);
           } catch(e) { updateMemoryBadge(rows.length, true); }
         }
+      } else {
+        cloudError = resp.status;
+        console.warn(`Cloud sync: HTTP ${resp.status} — table may be missing`);
       }
-    } catch(e) { console.warn('Restore from Supabase failed:', e); }
+    } catch(e) { cloudError = 'network'; console.warn('Restore from Supabase failed:', e); }
   }
+  _cloudAvailable = cloudOk;
   // Fallback to local
   if (!history || history.length === 0) {
     history = loadLocalMemory();
@@ -2245,16 +2254,21 @@ async function restoreChatHistory(force = false) {
     // Insert a subtle system message at the top
     const sysRow = document.createElement('div');
     sysRow.className = 'ts-divider';
-    sysRow.textContent = `Synced ${history.length} messages from cloud`;
-    sysRow.style.cssText = 'color:#6B7280;font-size:10.5px;margin:4px 0 12px;';
+    const source = cloudOk ? 'cloud' : 'local storage';
+    sysRow.textContent = `Synced ${history.length} messages from ${source}`;
+    sysRow.style.cssText = cloudOk
+      ? 'color:#6B7280;font-size:10.5px;margin:4px 0 12px;'
+      : 'color:#F59E0B;font-size:10.5px;margin:4px 0 12px;';
     messagesEl.insertBefore(sysRow, messagesEl.firstChild);
     _historyRestored = true;
   } else {
-    // Keep welcome message but update its time
-    const welcome = document.getElementById('welcomeMsg');
-    if (welcome) {
-      const timeEl = welcome.querySelector('.msg-time');
-      if (timeEl) timeEl.textContent = 'now';
+    // Show empty-state if no history from either source
+    if (cloudError) {
+      const welcome = document.getElementById('welcomeMsg');
+      if (welcome) {
+        const timeEl = welcome.querySelector('.msg-time');
+        if (timeEl) timeEl.textContent = `cloud sync unavailable (HTTP ${cloudError}) — saving locally`;
+      }
     }
   }
   scrollToBottom();
