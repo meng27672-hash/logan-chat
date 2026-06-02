@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.2.3">
+<meta name="version" content="v4.2.4">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1261,10 +1261,25 @@ function startPendingPolling() {
   pendingPollInterval = setInterval(pollPendingReplies, 30000); // Every 30 seconds
 }
 
-// On app open, recover any pending replies from Supabase that haven't been processed yet
+// On app open, recover any pending replies + seed processed IDs from Supabase
 async function recoverPendingReplies() {
   if (!config.supabaseUrl || !config.supabaseKey) return;
   try {
+    // First: seed processedPendingIds from Supabase (survives localStorage clear)
+    try {
+      const doneUrl = `${config.supabaseUrl}/rest/v1/pending_replies?session_id=eq.default&status=eq.completed&select=id&limit=100`;
+      const doneResp = await fetch(doneUrl, { headers: supabaseHeaders() });
+      if (doneResp.ok) {
+        const doneRows = await doneResp.json();
+        for (const row of doneRows) {
+          processedPendingIds.add(row.id);
+        }
+        saveProcessedIds();
+        console.log(`[Recover] Seeded ${doneRows.length} processed IDs from Supabase`);
+      }
+    } catch(e) { console.warn('[Recover] Failed to seed processed IDs:', e); }
+
+    // Second: recover still-pending replies
     const url = `${config.supabaseUrl}/rest/v1/pending_replies?session_id=eq.default&status=eq.pending&select=id`;
     const resp = await fetch(url, { headers: supabaseHeaders() });
     if (!resp.ok) return;
@@ -1815,60 +1830,52 @@ window.addEventListener('appinstalled', () => {
 });
 
 // Send notification when Logan replies (desktop + PWA mobile)
-// v4.3: Always use SW showNotification for PWA (background support) — NO hasFocus check
+// v4.2.4: Fix notification timing + recover dedup from Supabase
 function sendDesktopNotification(replyText) {
   if (localStorage.getItem('notifyDesktop') !== 'true') return;
 
   const preview = replyText.length > 100 ? replyText.substring(0, 97) + '...' : replyText;
   const icon = (typeof AVATARS !== 'undefined' && AVATARS[currentAvatarIdx]) ? AVATARS[currentAvatarIdx] : '';
 
-  const trySW = () => {
-    if (swRegistration && 'showNotification' in swRegistration) {
-      swRegistration.showNotification('John Logan', {
-        body: preview,
-        icon: icon,
-        badge: '/logan-chat/icon-192.png',
-        tag: 'logan-reply-' + Date.now(),
-        silent: localStorage.getItem('notifySound') !== 'true',
-        vibrate: [200, 100, 200],
-        data: { url: window.location.href },
-        requireInteraction: false,
-      });
-      return true;
+  // Delay to avoid firing while page is still loading/focusing
+  setTimeout(() => {
+    // Skip if user is actively looking at the conversation right now
+    if (document.hasFocus() && !document.hidden) {
+      console.log('[Notify] Page is active, skipping desktop notification');
+      return;
     }
-    return false;
-  };
 
-  if (trySW()) return;
-
-  // SW not ready — retry for up to 2 seconds
-  if (!swRegistration) {
-    let waited = 0;
-    const waitForSW = setInterval(() => {
-      waited += 300;
-      if (trySW() || waited >= 2000) {
-        clearInterval(waitForSW);
-        if (!swRegistration) fallbackDesktop(preview, icon);
+    const trySW = () => {
+      if (swRegistration && 'showNotification' in swRegistration) {
+        swRegistration.showNotification('John Logan', {
+          body: preview,
+          icon: icon,
+          badge: '/logan-chat/icon-192.png',
+          tag: 'logan-reply-' + Date.now(),
+          silent: localStorage.getItem('notifySound') !== 'true',
+          vibrate: [200, 100, 200],
+          data: { url: window.location.href },
+          requireInteraction: false,
+        });
+        return true;
       }
-    }, 300);
-    return;
-  }
+      return false;
+    };
 
-  fallbackDesktop(preview, icon);
-}
+    if (trySW()) return;
 
-function fallbackDesktop(preview, icon) {
-  if (!('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
-  if (document.hasFocus()) return;
-  try {
-    const notif = new Notification('John Logan', {
-      body: preview, icon: icon, tag: 'logan-reply',
-      silent: localStorage.getItem('notifySound') !== 'true',
-    });
-    notif.onclick = function() { window.focus(); notif.close(); };
-    setTimeout(() => notif.close(), 8000);
-  } catch(e) { console.log('Notification failed:', e); }
+    // Fallback: direct Notification API (only when page is backgrounded)
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    try {
+      const notif = new Notification('John Logan', {
+        body: preview, icon: icon, tag: 'logan-reply',
+        silent: localStorage.getItem('notifySound') !== 'true',
+      });
+      notif.onclick = function() { window.focus(); notif.close(); };
+      setTimeout(() => notif.close(), 8000);
+    } catch(e) { console.log('Notification failed:', e); }
+  }, 3000); // wait 3s so page focus state stabilizes
 }
 
 
