@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.2.7">
+<meta name="version" content="v4.2.8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2474,40 +2474,48 @@ function jumpToMessage(refEl) {
 // INIT
 // ============================================================
 (async () => {
-  // Setup long press listeners
-  setupLongPress();
-  
-  // Register Service Worker (for PWA + notifications)
-  await registerSW();
-  
-  // Load notification settings
-  loadNotifySettings();
-  
-  // Apply avatar first (ensure header + all chat avatars match)
-  applyAvatar(currentAvatarIdx);
-  
-  // Load user avatar and wallpaper on init
-  loadUserAvatar();
-  loadWallpaper();
-  // Always restore chat history (independent of API key)
-  await restoreChatHistory();
+  try {
+    // Setup long press listeners
+    setupLongPress();
+    
+    // Register Service Worker (for PWA + notifications)
+    await registerSW();
+    
+    // Load notification settings
+    loadNotifySettings();
+    
+    // Apply avatar first (ensure header + all chat avatars match)
+    applyAvatar(currentAvatarIdx);
+    
+    // Load user avatar and wallpaper on init
+    loadUserAvatar();
+    loadWallpaper();
+    // Always restore chat history (independent of API key)
+    await restoreChatHistory();
 
-  // Recover any pending replies from previous sessions (so they don't get lost)
-  await recoverPendingReplies();
+    // Recover any pending replies from previous sessions (so they don't get lost)
+    await recoverPendingReplies();
 
-  // Re-apply avatar after history restore (ensures restored messages use correct avatar)
-  applyAvatar(currentAvatarIdx);
-  
-  // Then check if API key is configured
-  if (!config.apiKey) {
-    setTimeout(openSettings, 500);
-  } else {
+    // Re-apply avatar after history restore (ensures restored messages use correct avatar)
+    applyAvatar(currentAvatarIdx);
+    
+    // Then check if API key is configured
+    if (!config.apiKey) {
+      setTimeout(openSettings, 500);
+    } else {
+      document.getElementById('statusText').textContent = 'active now';
+      renderStickerGrid();
+    }
+
+    // Start proactive message checker
+    startProactiveChecker();
+  } catch(e) {
+    console.error('Init failed:', e);
+    // Ensure chat is still usable even if init partially fails
     document.getElementById('statusText').textContent = 'active now';
-    renderStickerGrid();
+    if (config.apiKey) renderStickerGrid();
+    startProactiveChecker();
   }
-
-  // Start proactive message checker
-  startProactiveChecker();
 })();
 
 // ============================================================
