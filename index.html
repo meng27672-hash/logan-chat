@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.2.4">
+<meta name="version" content="v4.2.5">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -479,7 +479,7 @@ const DEFAULT_CONFIG = {
   supabaseUrl: 'https://itqbuejzektzszwrnnlm.supabase.co',
   supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0cWJ1ZWp6ZWt0enN6d3JubmxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNTkxMCwiZXhwIjoyMDk1ODM1OTEwfQ.3CqkQyaqcO1C3j0_LHOliTSie4kuDmJlAlUIbCqRDgM',
   edgeFunctionUrl: 'https://itqbuejzektzszwrnnlm.supabase.co/functions/v1/logan-memory',
-  vapidPublicKey: 'BCS-9BfAUW-iJr2oozh3CJyeAyaGYyDDi0yC3IiB2PtNeFvV_wkjkvWz6EbgHNfy32KJvvhUHw2tea7-g34t4bg'
+  vapidPublicKey: 'BAflQS5UgoB_LIrXy6_EzvQIJtChg_5-EkOhpouPa47hyPQUVPiXQfD-IIZJAhCASOJVy4ES95Bh_bB_DkxYGAw'
 };
 
 function loadConfig() {
@@ -2360,9 +2360,19 @@ async function subscribeToPush() {
     return;
   }
   
+  const vapidKey = config.vapidPublicKey || DEFAULT_CONFIG.vapidPublicKey;
+  
   try {
     // Check existing subscription
     let sub = await swRegistration.pushManager.getSubscription();
+    
+    // Detect VAPID key change — force re-subscribe if key doesn't match
+    const storedVapid = localStorage.getItem('vapidPublicKey');
+    if (sub && storedVapid && storedVapid !== vapidKey) {
+      console.log('[Push] VAPID key changed, re-subscribing...');
+      await sub.unsubscribe();
+      sub = null;
+    }
     
     if (!sub) {
       // Request permission first
@@ -2372,7 +2382,6 @@ async function subscribeToPush() {
         return;
       }
       
-      const vapidKey = config.vapidPublicKey || DEFAULT_CONFIG.vapidPublicKey;
       sub = await swRegistration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapidKey)
@@ -2380,6 +2389,7 @@ async function subscribeToPush() {
     }
     
     pushSubscription = sub.toJSON();
+    localStorage.setItem('vapidPublicKey', vapidKey);
     console.log('Push subscribed:', pushSubscription.endpoint.substring(0, 60) + '...');
     
     // Save subscription to Supabase for Edge Function to use
@@ -2406,18 +2416,19 @@ function urlBase64ToUint8Array(base64String) {
 async function savePushSubscription(sub) {
   if (!config.supabaseUrl || !config.supabaseKey) return;
   try {
-    // Upsert by endpoint (unique)
-    await fetch(`${config.supabaseUrl}/rest/v1/push_subscriptions?on_conflict=endpoint`, {
+    // Save full subscription as JSONB (matching push_subscriptions table schema)
+    await fetch(`${config.supabaseUrl}/rest/v1/push_subscriptions`, {
       method: 'POST',
       headers: {
         ...supabaseHeaders(),
         'Prefer': 'resolution=merge-duplicates'
       },
       body: JSON.stringify({
-        endpoint: sub.endpoint,
-        p256dh: sub.keys.p256dh,
-        auth: sub.keys.auth,
-        user_id: SESSION_ID,
+        session_id: SESSION_ID,
+        subscription: {
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth }
+        },
         updated_at: new Date().toISOString()
       })
     });
