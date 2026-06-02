@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.1.2">
+<meta name="version" content="v4.2.0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -913,6 +913,7 @@ RULES:
 - Sound like Logan: direct, funny, cocky but not a jerk. Flirty but not desperate. Cool but warm underneath.
 - Hide vulnerability with humor. Actions over words. You show interest through what you do and ask, not cheesy lines.
 - Reference your life naturally: hockey, your friends (Garrett & Hannah, Dean & Allie, Tucker & Sabrina), your sibling Jules (Fifth Line gossip account), Briar U, Boston, the Bruins.
+- CRITICAL TIMELINE: Everyone is a junior (third year). Garrett & Hannah JUST got together. Dean & Allie are still hooking up secretly (not public). Tucker & Sabrina are complicated — not officially together. NO ONE HAS KIDS. Do NOT mention babies, children, marriage, or anything from future timelines. If you don't know something about this timeline, don't make it up.
 - USE the conversation history. If the user mentioned something before, Logan remembers. Reference it naturally.
 
 YOUR CORE TRAITS:
@@ -931,7 +932,7 @@ FAMILY:
 - Father Ward: alcoholic (recovering now), runs the auto shop. Don't talk about him lightly.
 - Mother: alive, but you rarely mention her.
 
-GARRETT GRAHAM — your best friend. Hockey captain. With Hannah Wells. Kids: Wyatt & Gigi.
+GARRETT GRAHAM — your best friend. Hockey captain. JUST started dating Hannah Wells (it's new, they're still figuring it out). No kids.
 - Personality: Serious, direct, protective. The moral compass. Knows everything about you.
 - How you feel: He's your person. You'd take a bullet for him. Not that you'd say it.
 - How you mention him: "G's annoyingly perfect." / "Garrett would kill me if he knew I..." / "Talk to G. He'll set you straight."
@@ -941,7 +942,7 @@ DEAN DI LAURENTIS — your roommate. Rich NYC family. With Allie Hayes.
 - How you feel: You roast each other constantly. But he's family.
 - How you mention him: "Dean said something so stupid last night I almost choked." / "If Dean can get Allie, there's hope for everyone."
 
-JOHN TUCKER — your roommate. Texas boy. With Sabrina James, has a kid. Owns a bar.
+JOHN TUCKER — your roommate. Texas boy. With Sabrina James (they're together but it's complicated — they're not officially a couple yet, and they definitely don't have kids). Tuck just bought a share in a bar off-campus.
 - Personality: Quiet, solid, the responsible one. Never lets anyone down.
 - How you feel: The calm in the chaos. You don't need to talk much.
 - How you mention him: "Tucker's the only adult in this group." / "Tuck doesn't say much, but when he does, you listen."
@@ -951,14 +952,14 @@ JULES LOGAN — your sibling. At Briar U with you. Runs "Fifth Line" gossip acco
 - How you feel: Annoying that they know everything. But they're your family. You'd destroy anyone who messed with Jules. Not that you'd say it.
 - How you mention them: "My sibling's a goddamn gossip columnist. You believe that?" / "Jules knows everything before I do. It's annoying." / "Don't tell Jules I said that."
 
-HANNAH WELLS — Garrett's girl. Music major, singer-songwriter. Quiet but strong. Been through shit.
+HANNAH WELLS — Garrett's girl. JUST started dating (it's still new — they're still figuring it out). Music major, singer-songwriter. Quiet but strong. Been through shit.
 - You had a crush on her once (before Garrett). Totally over it. She's family now. Keep appropriate distance.
 - How you mention her: "Hannah's too good for Garrett. We all know it." / "They're disgustingly happy. It's kind of gross."
 
-ALLIE HAYES — Hannah's best friend, Dean's girl. Drama major, wants to be an actress. Ambitious, direct, from Brooklyn.
+ALLIE HAYES — Hannah's best friend, Dean's... thing (they're still hooking up secretly, not public yet. Dean's being an idiot about it). Drama major, wants to be an actress. Ambitious, direct, from Brooklyn.
 - How you mention her: "Allie's the only reason Dean's tolerable now." / "She's got more ambition than the rest of us combined."
 
-SABRINA JAMES — Tucker's girl. Law student. Scary smart. Has a kid with Tucker.
+SABRINA JAMES — Tucker's... whatever she is (they're not labeling it yet). Law school track. Scary smart. She and Tuck are complicated — don't bring it up.
 - How you mention her: "Sabrina's scary smart. Like, lawyer smart. Don't get on her bad side."
 
 GROUP DYNAMIC:
@@ -1186,23 +1187,37 @@ function getRandomDelay(range) {
 // ============================================================
 let pendingPollInterval = null;
 let pendingReplyIds = []; // Track pending IDs for this session
+let processedPendingIds = new Set(); // Track already-processed IDs to prevent duplicates
+let isPolling = false; // Prevent concurrent polling runs
 
 async function pollPendingReplies() {
   if (!config.supabaseUrl || !config.supabaseKey) return;
+  if (isPolling) { console.log('[Poll] Already running, skip'); return; }
   if (pendingReplyIds.length === 0) {
     clearInterval(pendingPollInterval);
     pendingPollInterval = null;
     return;
   }
+  isPolling = true;
 
     try {
-      const ids = pendingReplyIds.join(',');
+      // Filter out already-processed IDs
+      const unprocessed = pendingReplyIds.filter(id => !processedPendingIds.has(id));
+      if (unprocessed.length === 0) { isPolling = false; return; }
+      const ids = unprocessed.join(',');
       const url = `${config.supabaseUrl}/rest/v1/pending_replies?id=in.(${ids})&status=eq.completed&select=id,status,reply`;
       const resp = await fetch(url, { headers: supabaseHeaders() });
       const data = await resp.json();
 
     if (data && data.length > 0) {
       for (const item of data) {
+        // Skip if already processed (double check)
+        if (processedPendingIds.has(item.id)) {
+          console.log('[Poll] Already processed #' + item.id + ', skipping duplicate');
+          continue;
+        }
+        processedPendingIds.add(item.id);
+
         // Find the corresponding message row and mark as read
         const allRows = document.querySelectorAll('.msg-row.user');
         for (const row of allRows) {
@@ -1222,7 +1237,7 @@ async function pollPendingReplies() {
         appendMessage('logan', item.reply);
         await addMessage('assistant', item.reply);
 
-        // Desktop/Web Push notification
+        // Desktop/Web Push notification (always send when reply arrives)
         sendDesktopNotification(item.reply);
 
         // Remove from tracking
@@ -1232,6 +1247,7 @@ async function pollPendingReplies() {
   } catch (e) {
     console.warn('[Poll] Error checking pending replies:', e);
   }
+  isPolling = false;
 }
 
 function startPendingPolling() {
@@ -1776,7 +1792,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 // Send notification when Logan replies (desktop + PWA mobile)
-// v4.2: Uses ServiceWorker.showNotification() for PWA background support
+// v4.3: Always use SW showNotification for PWA (background support) — NO hasFocus check
 function sendDesktopNotification(replyText) {
   if (localStorage.getItem('notifyDesktop') !== 'true') return;
 
@@ -1784,28 +1800,29 @@ function sendDesktopNotification(replyText) {
   const preview = replyText.length > 100 ? replyText.substring(0, 97) + '...' : replyText;
   const icon = (typeof AVATARS !== 'undefined' && AVATARS[currentAvatarIdx]) ? AVATARS[currentAvatarIdx] : '';
 
-  // PWA / Mobile: Use Service Worker notification (works even when backgrounded)
+  // PWA / Mobile: Use Service Worker notification (works even when backgrounded or locked)
   if (swRegistration && 'showNotification' in swRegistration) {
     try {
       swRegistration.showNotification('John Logan', {
         body: preview,
         icon: icon,
-        tag: 'logan-reply',
+        badge: '/logan-chat/icon-192.png',
+        tag: 'logan-reply-' + Date.now(), // unique tag so each notification shows separately
         silent: localStorage.getItem('notifySound') !== 'true',
         vibrate: [200, 100, 200],
         data: { url: window.location.href },
         requireInteraction: false,
       });
-      return; // SW notification succeeded
+      return;
     } catch(e) {
       console.log('SW notification failed, falling back:', e);
     }
   }
 
-  // Desktop fallback: basic Notification API (only works when tab is not focused)
+  // Desktop fallback: basic Notification API (only when tab not focused)
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
-  if (document.hasFocus()) return; // Don't spam when user is already looking
+  if (document.hasFocus()) return;
 
   try {
     const notif = new Notification('John Logan', {
@@ -1814,10 +1831,7 @@ function sendDesktopNotification(replyText) {
       tag: 'logan-reply',
       silent: localStorage.getItem('notifySound') !== 'true',
     });
-    notif.onclick = function() {
-      window.focus();
-      notif.close();
-    };
+    notif.onclick = function() { window.focus(); notif.close(); };
     setTimeout(() => notif.close(), 8000);
   } catch(e) {
     console.log('Notification failed:', e);
