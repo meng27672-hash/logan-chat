@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v3.0.4-20260602">
+<meta name="version" content="v4.0.0-20260602">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1102,55 +1102,136 @@ async function callLoganAPI(userMessage) {
 }
 
 // ============================================================
-// LOGAN REPLY DELAY (simulates hockey player / student schedule)
+// LOGAN REPLY DELAY — Realistic schedule (June 2026, Offseason)
 // ============================================================
-// Logan's "schedule" — these are Boston local times (EDT = UTC-4)
-// Returns delay in ms before Logan starts "typing"
+// Boston local times (EDT = UTC-4). Values in MINUTES.
+// Sleep hours = HOURS of delay. Only free time = quick seconds.
 function getLoganDelay() {
-  // Use Boston time
   const now = new Date();
-  // Boston = UTC-4 (EDT) or UTC-5 (EST). Approximate with EDT.
   const bostonHr = new Date(now.getTime() - 4 * 3600000).getUTCHours();
   const day = now.getDay(); // 0=Sun, 6=Sat
   const isWeekend = day === 0 || day === 6;
 
-  // Night: 12AM-6AM → deep sleep, reply in 2-8 hours (simulate as 30s-90s for UX)
+  // Deep sleep: 12AM-6AM → he won't reply for hours
+  // Calculate wake-up delay: if 3AM, he wakes at 7AM = 4 hours
   if (bostonHr >= 0 && bostonHr < 6) {
-    return { min: 30, max: 90, label: 'sleeping' };
+    const wakeUpHr = isWeekend ? 9 : 7; // weekends he sleeps in
+    const hrsUntilWake = wakeUpHr - bostonHr;
+    const delayMin = hrsUntilWake * 60 + Math.floor(Math.random() * 30); // wake + random groggy time
+    return { min: delayMin, max: delayMin + 60, label: 'sleeping', uxDelay: false };
   }
-  // Early morning: 6AM-8AM → just woke up, slow
-  if (bostonHr < 8) {
-    return { min: 10, max: 45, label: 'morning' };
+  // Just woke up: 6AM-8AM (weekday) / 9AM (weekend) → groggy, slow
+  if (isWeekend && bostonHr < 9) {
+    return { min: 15, max: 40, label: 'waking up', uxDelay: false };
   }
-  // Class / training time: 8AM-12PM, 1PM-3PM → busy, delayed
+  if (!isWeekend && bostonHr < 8) {
+    return { min: 10, max: 30, label: 'waking up', uxDelay: false };
+  }
+  // Class / busy: 8AM-12PM, 1PM-3PM → can't check phone often
   if ((bostonHr >= 8 && bostonHr < 12) || (bostonHr >= 13 && bostonHr < 15)) {
-    return { min: 15, max: 120, label: 'busy' };
+    if (isWeekend) { return { min: 2, max: 10, label: 'around', uxDelay: true }; }
+    return { min: 15, max: 90, label: 'in class', uxDelay: false };
   }
-  // Lunch / break: 12PM-1PM → quicker
+  // Lunch break: 12PM-1PM → phone out, faster
   if (bostonHr >= 12 && bostonHr < 13) {
-    return { min: 3, max: 20, label: 'lunch' };
+    return { min: 1, max: 8, label: 'lunch', uxDelay: true };
   }
-  // Afternoon practice: 3PM-6PM → on ice, very delayed
+  // Practice: 3PM-6PM → on ice or in gym, can't reply
   if (bostonHr >= 15 && bostonHr < 18) {
-    return { min: 45, max: 180, label: 'practice' };
+    if (isWeekend) { return { min: 1, max: 5, label: 'around', uxDelay: true }; }
+    return { min: 30, max: 120, label: 'at practice', uxDelay: false };
   }
-  // Evening: 6PM-9PM → free time, quick replies
-  if (bostonHr >= 18 && bostonHr < 21) {
-    return { min: 2, max: 15, label: 'evening' };
+  // Evening: 6PM-10PM → free, quick replies (UX-friendly)
+  if (bostonHr >= 18 && bostonHr < 22) {
+    return { min: 0.05, max: 0.5, label: 'free', uxDelay: true };
   }
-  // Late night: 9PM-12AM → winding down, variable
-  return { min: 5, max: 40, label: 'night' };
+  // Late night: 10PM-12AM → winding down but still up
+  return { min: 2, max: 20, label: 'night', uxDelay: true };
+}
+
+// Returns a "at a glance" status for Logan
+function getLoganStatus() {
+  const range = getLoganDelay();
+  const labels = {
+    'sleeping': '😴 Asleep — it\'s the middle of the night in Boston',
+    'waking up': '🥱 Just waking up, might be slow',
+    'in class': '📚 In summer class — replies when he can',
+    'lunch': '🍔 Lunch break, should be around',
+    'at practice': '🏒 At the rink — on the ice for a while',
+    'free': '✅ Free right now, probably at Malone\'s',
+    'night': '🌙 Winding down, still around',
+    'around': '👍 Around and available'
+  };
+  return labels[range.label] || '👍 Available';
 }
 
 function getRandomDelay(range) {
-  // Weighted: more likely to be in the lower half (Logan is responsive overall)
   const r = Math.random();
   const weighted = r * r; // square = bias toward lower values
-  return Math.round(range.min + weighted * (range.max - range.min)) * 1000;
+  // range.min/max are in MINUTES now
+  const delayMin = Math.round(range.min + weighted * (range.max - range.min)) * 60000;
+  return delayMin;
 }
 
 // ============================================================
-// SEND MESSAGE (with reply support)
+// PENDING REPLY POLLING
+// ============================================================
+let pendingPollInterval = null;
+let pendingReplyIds = []; // Track pending IDs for this session
+
+async function pollPendingReplies() {
+  if (!config.supabaseUrl || !config.supabaseKey) return;
+  if (pendingReplyIds.length === 0) {
+    clearInterval(pendingPollInterval);
+    pendingPollInterval = null;
+    return;
+  }
+
+    try {
+      const ids = pendingReplyIds.join(',');
+      const url = `${config.supabaseUrl}/rest/v1/pending_replies?id=in.(${ids})&status=eq.completed&select=id,status,reply`;
+      const resp = await fetch(url, { headers: supabaseHeaders() });
+      const data = await resp.json();
+
+    if (data && data.length > 0) {
+      for (const item of data) {
+        // Find the corresponding message row and mark as read
+        const allRows = document.querySelectorAll('.msg-row.user');
+        for (const row of allRows) {
+          const readEl = row.querySelector('.read-status');
+          if (readEl && readEl.dataset.pendingId === String(item.id)) {
+            readEl.textContent = '✓✓';
+            readEl.classList.add('read');
+            readEl.dataset.read = 'read';
+          }
+        }
+
+        // Append Logan's reply
+        typingEl.classList.add('show');
+        scrollToBottom();
+        await new Promise(r => setTimeout(r, 1500 + Math.random() * 1500));
+        typingEl.classList.remove('show');
+        appendMessage('logan', item.reply);
+
+        // Desktop/Web Push notification
+        sendDesktopNotification(item.reply);
+
+        // Remove from tracking
+        pendingReplyIds = pendingReplyIds.filter(pid => pid !== item.id);
+      }
+    }
+  } catch (e) {
+    console.warn('[Poll] Error checking pending replies:', e);
+  }
+}
+
+function startPendingPolling() {
+  if (pendingPollInterval) return;
+  pendingPollInterval = setInterval(pollPendingReplies, 30000); // Every 30 seconds
+}
+
+// ============================================================
+// SEND MESSAGE (v4.0: with realistic schedule + backend-pending flow)
 // ============================================================
 async function sendMessage() {
   const text = inputEl.value.trim();
@@ -1159,21 +1240,19 @@ async function sendMessage() {
   if (!config.apiKey) { openSettings(); return; }
 
   // Check if replying
-  let apiText = text;        // What AI sees (with reply context)
+  let apiText = text;
   let replyRef = null;
   if (replyToMsg) {
     apiText = `[You are replying to ${replyToMsg.who}'s message: "${replyToMsg.text}"]\nYour reply: ${text}`;
     replyRef = replyToMsg;
   }
 
-  // 1. Append user message — show the actual text only, NOT the [Replying to...] prefix
+  // 1. Append user message
   const userRow = appendMessage('user', text, replyRef);
   const readEl  = userRow.querySelector('.read-status');
   inputEl.value = '';
   toggleSendBtn();
   scrollToBottom();
-  
-  // Clear reply state
   cancelReply();
 
   if (readEl) {
@@ -1182,51 +1261,89 @@ async function sendMessage() {
     readEl.dataset.read = 'sent';
   }
 
+  // Save to Supabase (user message)
+  if (config.supabaseUrl && config.supabaseKey) {
+    try { await addMessage('user', text); } catch(e) { console.warn('Save failed:', e); }
+  }
+
   try {
-    // 2. Wait for Logan's schedule delay (simulate him being busy)
     const range = getLoganDelay();
-    const delayMs = getRandomDelay(range);
-    const extraDelay = Math.random() < 0.10
-      ? getRandomDelay({ min: 60, max: 300 })
-      : 0;
 
-    console.log(`[Logan schedule: ${range.label}, delay: ${(delayMs/1000).toFixed(1)}s${extraDelay ? ' + extra ' + (extraDelay/1000).toFixed(1) + 's' : ''}]`);
+    // ═══════════════════════════════════════
+    // DECISION: Inline (quick) vs Pending (slow)
+    // ═══════════════════════════════════════
+    if (range.uxDelay) {
+      // QUICK PATH: Logan is free — reply inline (current behavior)
+      const delayMs = getRandomDelay(range);
+      console.log(`[Logan schedule: ${range.label}, inline delay: ${(delayMs/1000).toFixed(1)}s]`);
 
-    await new Promise(r => setTimeout(r, delayMs));
+      await new Promise(r => setTimeout(r, delayMs));
 
-    // 3. Delay over — Logan has "read" the message → upgrade to double ✓✓
-    if (readEl) {
-      readEl.textContent = '✓✓';
-      readEl.classList.add('read');
-      readEl.dataset.read = 'read';
-    }
+      // Mark as read
+      if (readEl) {
+        readEl.textContent = '✓✓';
+        readEl.classList.add('read');
+        readEl.dataset.read = 'read';
+      }
 
-    // 4. Now show "typing..." indicator
-    typingEl.classList.add('show');
-    scrollToBottom();
-
-    // 5. Typing duration (1-4s), then hide before API call
-    const typingDuration = (1 + Math.random() * 3) * 1000;
-    await new Promise(r => setTimeout(r, typingDuration));
-    typingEl.classList.remove('show');
-
-    // 6. Extra "left on read" delay?
-    if (extraDelay) {
-      await new Promise(r => setTimeout(r, extraDelay));
+      // Typing indicator
       typingEl.classList.add('show');
       scrollToBottom();
-      const extraTyping = (1 + Math.random() * 2) * 1000;
-      await new Promise(r => setTimeout(r, extraTyping));
+      await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
       typingEl.classList.remove('show');
+
+      // Call API and show reply
+      const reply = await callLoganAPI(apiText);
+      appendMessage('logan', reply);
+      sendDesktopNotification(reply);
+
+    } else {
+      // SLOW PATH: Logan is asleep/busy/practicing — store as pending
+      const delayMin = getRandomDelay(range);
+      const scheduledAt = new Date(Date.now() + delayMin).toISOString();
+
+      console.log(`[Logan schedule: ${range.label}, pending delay: ${(delayMin/60000).toFixed(0)}min, scheduled: ${scheduledAt}]`);
+
+      // Show status
+      const statusText = getLoganStatus();
+      if (readEl) {
+        readEl.dataset.statusText = statusText;
+      }
+
+      // Store in Supabase
+      if (config.supabaseUrl && config.supabaseKey) {
+        try {
+          const body = JSON.stringify({
+            session_id: 'default',
+            user_message: apiText,
+            scheduled_at: scheduledAt,
+            status: 'pending'
+          });
+          const resp = await fetch(`${config.supabaseUrl}/rest/v1/pending_replies?select=id`, {
+            method: 'POST',
+            headers: { ...supabaseHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+            body
+          });
+          const result = await resp.json();
+
+          if (result && result.length > 0 && result[0].id) {
+            const pid = result[0].id;
+            pendingReplyIds.push(pid);
+            if (readEl) readEl.dataset.pendingId = String(pid);
+            startPendingPolling();
+            console.log(`[Pending] Stored #${pid}, scheduled for ${scheduledAt}`);
+          } else {
+            console.warn('[Pending] Failed to store:', result);
+            appendMessage('logan', `[${statusText}]`, null, true);
+          }
+        } catch (e) {
+          console.warn('[Pending] Store error:', e);
+        }
+      } else {
+        // No Supabase — just show status text
+        appendMessage('logan', `[${statusText}]`, null, true);
+      }
     }
-
-    // 7. Finally call API and append reply (use apiText which includes reply context for AI)
-    const reply = await callLoganAPI(apiText);
-    appendMessage('logan', reply);
-
-    // 8. Desktop notification (if enabled and page not focused)
-    sendDesktopNotification(reply);
-
   } catch(e) {
     typingEl.classList.remove('show');
     appendMessage('logan', 'Shit, bad connection. Try again?');
@@ -1234,11 +1351,27 @@ async function sendMessage() {
   }
 }
 
-function appendMessage(who, text, replyRef) {
+function appendMessage(who, text, replyRef, isStatus) {
   const row = document.createElement('div');
   row.className = `msg-row ${who}`;
   // Store message text as data attribute for reply reference
   row.dataset.msgText = text;
+
+  // Status messages get a special style
+  if (isStatus) {
+    row.style.opacity = '0.6';
+    row.style.fontSize = '12px';
+    row.style.fontStyle = 'italic';
+    row.style.marginTop = '8px';
+    row.style.marginBottom = '8px';
+    row.style.maxWidth = '90%';
+    row.style.alignSelf = 'center';
+    row.style.textAlign = 'center';
+    row.style.color = '#8E8E93';
+    row.style.padding = '10px 16px';
+    row.style.background = '#1C1C1E';
+    row.style.borderRadius = '20px';
+  }
 
   const time = new Date().toLocaleTimeString('en-US', {
     hour: 'numeric', minute: '2-digit', hour12: true
