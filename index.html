@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.2.2">
+<meta name="version" content="v4.2.3">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -511,11 +511,9 @@ function clearLocalMemory() { localStorage.removeItem(MEMORY_KEY); }
 // ============================================================
 // SUPABASE MEMORY
 // ============================================================
-const SESSION_ID = localStorage.getItem('logan_session_id') || (() => {
-  const id = 'user_' + Math.random().toString(36).slice(2, 10);
-  localStorage.setItem('logan_session_id', id);
-  return id;
-})();
+// Session ID — use fixed 'default' so chat history persists across devices
+// and after clearing local data. Random ID was losing history on clear.
+const SESSION_ID = 'default';
 
 function supabaseHeaders() {
   return {
