@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.2.1">
+<meta name="version" content="v4.2.2">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Logan">
 <meta name="theme-color" content="#000000">
-<link rel="manifest" href="https://meng27672-hash.github.io/logan-chat/manifest.webmanifest?v=2.3.5">
+<link rel="manifest" href="/logan-chat/manifest.webmanifest?v=2.3.6">
 <title>John Logan</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -1798,10 +1798,22 @@ function setupMobilePush() {
   }
 }
 
-// Capture install prompt
+// Capture install prompt — Chrome fires this when PWA criteria are met
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   window.deferredPrompt = e;
+  console.log('PWA install prompt available');
+});
+
+// After successful install, auto-subscribe to push
+window.addEventListener('appinstalled', () => {
+  console.log('PWA installed successfully');
+  window.deferredPrompt = null;
+  // Auto-enable notifications after install
+  localStorage.setItem('notifyDesktop', 'true');
+  document.getElementById('desktopNotifyToggle').checked = true;
+  subscribeToPush();
+  showToast('Installed! Notifications enabled.');
 });
 
 // Send notification when Logan replies (desktop + PWA mobile)
@@ -2296,17 +2308,44 @@ let swRegistration = null;
 let pushSubscription = null;
 
 async function registerSW() {
-  if (!('serviceWorker' in navigator)) return;
+  if (!('serviceWorker' in navigator)) {
+    console.warn('Service Worker not supported in this browser');
+    return;
+  }
   try {
+    // Unregister any old SW with different scope first
+    const oldRegs = await navigator.serviceWorker.getRegistrations();
+    for (const reg of oldRegs) {
+      if (reg.scope !== 'https://meng27672-hash.github.io/logan-chat/') {
+        console.log('Unregistering old SW:', reg.scope);
+        await reg.unregister();
+      }
+    }
+    
     swRegistration = await navigator.serviceWorker.register('/logan-chat/sw.js');
     console.log('SW registered:', swRegistration.scope);
+    
+    // Listen for SW updates
+    swRegistration.addEventListener('updatefound', () => {
+      const newWorker = swRegistration.installing;
+      if (!newWorker) return;
+      newWorker.addEventListener('statechange', () => {
+        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          console.log('New SW available — will activate on reload');
+        }
+      });
+    });
     
     // After SW registered, subscribe to push if notifications enabled
     if (localStorage.getItem('notifyDesktop') === 'true') {
       await subscribeToPush();
     }
   } catch(e) {
-    console.log('SW registration failed:', e);
+    console.error('SW registration failed:', e.message);
+    // Show user-friendly message
+    if (e.message.includes('MIME') || e.message.includes('text/html')) {
+      console.error('SW file served with wrong MIME type — check server config');
+    }
   }
 }
 
@@ -2381,9 +2420,6 @@ async function savePushSubscription(sub) {
     console.warn('Save push subscription failed:', e);
   }
 }
-
-// Register SW on load
-registerSW();
 
 // ============================================================
 // JUMP TO MESSAGE (for reply reference clicks)
