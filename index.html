@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.1.1">
+<meta name="version" content="v4.1.2">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1239,6 +1239,28 @@ function startPendingPolling() {
   pendingPollInterval = setInterval(pollPendingReplies, 30000); // Every 30 seconds
 }
 
+// On app open, recover any pending replies from Supabase that haven't been processed yet
+async function recoverPendingReplies() {
+  if (!config.supabaseUrl || !config.supabaseKey) return;
+  try {
+    const url = `${config.supabaseUrl}/rest/v1/pending_replies?session_id=eq.default&status=eq.pending&select=id`;
+    const resp = await fetch(url, { headers: supabaseHeaders() });
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    if (rows && rows.length > 0) {
+      for (const row of rows) {
+        if (!pendingReplyIds.includes(row.id)) {
+          pendingReplyIds.push(row.id);
+          console.log(`[Recover] Added pending reply #${row.id} to polling queue`);
+        }
+      }
+      startPendingPolling();
+    }
+  } catch(e) {
+    console.warn('[Recover] Failed to fetch pending replies:', e);
+  }
+}
+
 let isProcessing = false;
 
 // ============================================================
@@ -1255,7 +1277,14 @@ async function sendMessage() {
   if (!text) { isProcessing = false; return; }
   if (!config.apiKey) { isProcessing = false; openSettings(); return; }
 
-  if (!config.apiKey) { openSettings(); return; }
+  // Debounce: prevent rapid double-tap on mobile (within 800ms)
+  const now = Date.now();
+  if (window._lastSendTime && now - window._lastSendTime < 800) {
+    isProcessing = false;
+    console.log('[sendMessage] Debounced — too fast');
+    return;
+  }
+  window._lastSendTime = now;
 
   // Check if replying
   let apiText = text;
@@ -1747,27 +1776,43 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 // Send notification when Logan replies (desktop + PWA mobile)
+// v4.2: Uses ServiceWorker.showNotification() for PWA background support
 function sendDesktopNotification(replyText) {
   if (localStorage.getItem('notifyDesktop') !== 'true') return;
 
-  // In standalone PWA mode (phone), always notify
-  // In browser mode, only notify when page is not focused
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-  if (!isStandalone && document.hasFocus()) return;
-
-  if (!('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
-
   // Truncate long messages for notification preview
   const preview = replyText.length > 100 ? replyText.substring(0, 97) + '...' : replyText;
+  const icon = (typeof AVATARS !== 'undefined' && AVATARS[currentAvatarIdx]) ? AVATARS[currentAvatarIdx] : '';
+
+  // PWA / Mobile: Use Service Worker notification (works even when backgrounded)
+  if (swRegistration && 'showNotification' in swRegistration) {
+    try {
+      swRegistration.showNotification('John Logan', {
+        body: preview,
+        icon: icon,
+        tag: 'logan-reply',
+        silent: localStorage.getItem('notifySound') !== 'true',
+        vibrate: [200, 100, 200],
+        data: { url: window.location.href },
+        requireInteraction: false,
+      });
+      return; // SW notification succeeded
+    } catch(e) {
+      console.log('SW notification failed, falling back:', e);
+    }
+  }
+
+  // Desktop fallback: basic Notification API (only works when tab is not focused)
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  if (document.hasFocus()) return; // Don't spam when user is already looking
 
   try {
     const notif = new Notification('John Logan', {
       body: preview,
-      icon: (typeof AVATARS !== 'undefined' && AVATARS[currentAvatarIdx]) ? AVATARS[currentAvatarIdx] : '',
+      icon: icon,
       tag: 'logan-reply',
       silent: localStorage.getItem('notifySound') !== 'true',
-      vibrate: isStandalone ? [200, 100, 200] : undefined,
     });
     notif.onclick = function() {
       window.focus();
@@ -2343,7 +2388,10 @@ function jumpToMessage(refEl) {
   loadWallpaper();
   // Always restore chat history (independent of API key)
   await restoreChatHistory();
-  
+
+  // Recover any pending replies from previous sessions (so they don't get lost)
+  await recoverPendingReplies();
+
   // Re-apply avatar after history restore (ensures restored messages use correct avatar)
   applyAvatar(currentAvatarIdx);
   
