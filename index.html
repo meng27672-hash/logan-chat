@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.2.0">
+<meta name="version" content="v4.2.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1092,9 +1092,9 @@ async function callLoganAPI(userMessage) {
 
   const reply = data.choices?.[0]?.message?.content?.trim() || '...';
 
-  // Save exchange to memory
-  await addMessage('user', userMessage);
-  await addMessage('assistant', reply);
+  // NOTE: addMessage for user is done in sendMessage() BEFORE calling callLoganAPI.
+  // addMessage for assistant is done in sendMessage() AFTER callLoganAPI returns.
+  // DO NOT duplicate storage here — it causes every message to appear twice on restore.
 
   // Collect Edge Function result (don't block — it's just for push notification)
   if (edgePromise) {
@@ -1187,8 +1187,15 @@ function getRandomDelay(range) {
 // ============================================================
 let pendingPollInterval = null;
 let pendingReplyIds = []; // Track pending IDs for this session
-let processedPendingIds = new Set(); // Track already-processed IDs to prevent duplicates
+let processedPendingIds = new Set(JSON.parse(localStorage.getItem('processedPendingIds') || '[]')); // Persist across sessions
 let isPolling = false; // Prevent concurrent polling runs
+
+// Save processed IDs to localStorage (survives page refresh / PWA reopen)
+function saveProcessedIds() {
+  try {
+    localStorage.setItem('processedPendingIds', JSON.stringify([...processedPendingIds].slice(-50)));
+  } catch(e) {}
+}
 
 async function pollPendingReplies() {
   if (!config.supabaseUrl || !config.supabaseKey) return;
@@ -1217,6 +1224,7 @@ async function pollPendingReplies() {
           continue;
         }
         processedPendingIds.add(item.id);
+        saveProcessedIds();
 
         // Find the corresponding message row and mark as read
         const allRows = document.querySelectorAll('.msg-row.user');
@@ -1264,13 +1272,18 @@ async function recoverPendingReplies() {
     if (!resp.ok) return;
     const rows = await resp.json();
     if (rows && rows.length > 0) {
+      let added = 0;
       for (const row of rows) {
+        if (processedPendingIds.has(row.id)) continue; // already handled in a previous session
         if (!pendingReplyIds.includes(row.id)) {
           pendingReplyIds.push(row.id);
+          added++;
           console.log(`[Recover] Added pending reply #${row.id} to polling queue`);
         }
       }
-      startPendingPolling();
+      if (added > 0) {
+        startPendingPolling();
+      }
     }
   } catch(e) {
     console.warn('[Recover] Failed to fetch pending replies:', e);
@@ -1796,46 +1809,56 @@ window.addEventListener('beforeinstallprompt', (e) => {
 function sendDesktopNotification(replyText) {
   if (localStorage.getItem('notifyDesktop') !== 'true') return;
 
-  // Truncate long messages for notification preview
   const preview = replyText.length > 100 ? replyText.substring(0, 97) + '...' : replyText;
   const icon = (typeof AVATARS !== 'undefined' && AVATARS[currentAvatarIdx]) ? AVATARS[currentAvatarIdx] : '';
 
-  // PWA / Mobile: Use Service Worker notification (works even when backgrounded or locked)
-  if (swRegistration && 'showNotification' in swRegistration) {
-    try {
+  const trySW = () => {
+    if (swRegistration && 'showNotification' in swRegistration) {
       swRegistration.showNotification('John Logan', {
         body: preview,
         icon: icon,
         badge: '/logan-chat/icon-192.png',
-        tag: 'logan-reply-' + Date.now(), // unique tag so each notification shows separately
+        tag: 'logan-reply-' + Date.now(),
         silent: localStorage.getItem('notifySound') !== 'true',
         vibrate: [200, 100, 200],
         data: { url: window.location.href },
         requireInteraction: false,
       });
-      return;
-    } catch(e) {
-      console.log('SW notification failed, falling back:', e);
+      return true;
     }
+    return false;
+  };
+
+  if (trySW()) return;
+
+  // SW not ready — retry for up to 2 seconds
+  if (!swRegistration) {
+    let waited = 0;
+    const waitForSW = setInterval(() => {
+      waited += 300;
+      if (trySW() || waited >= 2000) {
+        clearInterval(waitForSW);
+        if (!swRegistration) fallbackDesktop(preview, icon);
+      }
+    }, 300);
+    return;
   }
 
-  // Desktop fallback: basic Notification API (only when tab not focused)
+  fallbackDesktop(preview, icon);
+}
+
+function fallbackDesktop(preview, icon) {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
   if (document.hasFocus()) return;
-
   try {
     const notif = new Notification('John Logan', {
-      body: preview,
-      icon: icon,
-      tag: 'logan-reply',
+      body: preview, icon: icon, tag: 'logan-reply',
       silent: localStorage.getItem('notifySound') !== 'true',
     });
     notif.onclick = function() { window.focus(); notif.close(); };
     setTimeout(() => notif.close(), 8000);
-  } catch(e) {
-    console.log('Notification failed:', e);
-  }
+  } catch(e) { console.log('Notification failed:', e); }
 }
 
 
