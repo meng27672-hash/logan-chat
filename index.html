@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.2.8">
+<meta name="version" content="v4.3.0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -686,10 +686,13 @@ async function sbClearHistory() {
 // MEMORY: unified
 // ============================================================
 async function addMessage(role, content) {
-  // local
+  // local — guard against duplicate consecutive entries
   const local = loadLocalMemory();
-  local.push({ role, content });
-  saveLocalMemory(local);
+  const last = local[local.length - 1];
+  if (!last || last.role !== role || last.content !== content) {
+    local.push({ role, content });
+    saveLocalMemory(local);
+  }
   // cloud
   await sbInsert(role, content);
 }
@@ -1113,52 +1116,135 @@ async function callLoganAPI(userMessage) {
 // ============================================================
 // Boston local times (EDT = UTC-4). Values in MINUTES.
 // Sleep hours = HOURS of delay. Only free time = quick seconds.
-function getLoganDelay() {
-  const now = new Date();
-  const localHr = now.getHours();      // browser local time (user's timezone)
-  const day = now.getDay(); // 0=Sun, 6=Sat
+// ============================================================
+// LOGAN STATE MACHINE (v4.3.0)
+// Instead of per-message random delay, first decide Logan's state for this session.
+// State persists in localStorage so reopening the app respects the same state.
+// ============================================================
+
+// State shape: { status: 'awake'|'asleep', stateUntil: timestamp, wakeAt: timestamp|null }
+function _loadLoganState() {
+  try { return JSON.parse(localStorage.getItem('loganState')) || {}; }
+  catch(e) { return {}; }
+}
+function _saveLoganState(s) {
+  try { localStorage.setItem('loganState', JSON.stringify(s)); } catch(e) {}
+}
+
+// Returns current Logan state, rolling a new one if expired or missing
+function getLoganState() {
+  const now = Date.now();
+  const saved = _loadLoganState();
+
+  // State still valid — reuse it
+  if (saved.status && saved.stateUntil && now < saved.stateUntil) {
+    return saved;
+  }
+
+  // Need to determine a new state
+  const hr = new Date().getHours();
+  const min = new Date().getMinutes();
+  const day = new Date().getDay();
   const isWeekend = day === 0 || day === 6;
 
-  // Deep sleep: 12AM-6AM → he won't reply for hours
-  // Calculate wake-up delay: if 3AM, he wakes at 7AM = 4 hours
-  if (localHr >= 0 && localHr < 6) {
-    const wakeUpHr = isWeekend ? 9 : 7; // weekends he sleeps in
-    const hrsUntilWake = wakeUpHr - localHr;
-    const delayMin = hrsUntilWake * 60 + Math.floor(Math.random() * 30); // wake + random groggy time
-    return { min: delayMin, max: delayMin + 60, label: 'sleeping', uxDelay: false };
+  // Hard sleep window: 0–7 (weekday) or 0–8 (weekend) — always asleep, no roll
+  const wakeHr = isWeekend ? 8 : 7;
+  const wakeMin = isWeekend ? 0 : 30; // weekday wakes at 7:30
+  if (hr < wakeHr || (hr === wakeHr && min < wakeMin)) {
+    const todayWake = new Date();
+    todayWake.setHours(wakeHr, wakeMin + Math.floor(Math.random() * 20), 0, 0);
+    const state = { status: 'asleep', stateUntil: todayWake.getTime(), wakeAt: todayWake.getTime() };
+    _saveLoganState(state);
+    return state;
   }
-  // Just woke up: 6AM-8AM (weekday) / 9AM (weekend) → groggy, slow
-  if (isWeekend && localHr < 9) {
-    return { min: 15, max: 40, label: 'waking up', uxDelay: false };
+
+  // Late-night window: 22:00–24:00 — ROLL whether he's still up or already asleep
+  // 35% chance he's already in bed by the time you text him
+  if (hr >= 22) {
+    const rollSleep = Math.random() < 0.35;
+    if (rollSleep) {
+      // Asleep — he'll wake between 7:30 and 8:30 tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(7, 30 + Math.floor(Math.random() * 60), 0, 0);
+      const state = { status: 'asleep', stateUntil: tomorrow.getTime(), wakeAt: tomorrow.getTime() };
+      _saveLoganState(state);
+      return state;
+    } else {
+      // Still up — state valid until midnight or ~1 AM
+      const until = new Date();
+      until.setHours(23, 59, 59, 0);
+      const stateUntilMs = Math.min(until.getTime(), now + 90 * 60 * 1000); // max 90min
+      const state = { status: 'awake', stateUntil: stateUntilMs, wakeAt: null };
+      _saveLoganState(state);
+      return state;
+    }
   }
-  if (!isWeekend && localHr < 8) {
-    return { min: 10, max: 30, label: 'waking up', uxDelay: false };
+
+  // Daytime: awake, state valid for 2 hours (long enough to feel consistent)
+  const state = { status: 'awake', stateUntil: now + 2 * 60 * 60 * 1000, wakeAt: null };
+  _saveLoganState(state);
+  return state;
+}
+
+function getLoganDelay() {
+  const now = new Date();
+  const localHr = now.getHours();
+  const localMin = now.getMinutes();
+  const day = now.getDay();
+  const isWeekend = day === 0 || day === 6;
+
+  // Get Logan's current state (persisted, not re-rolled every message)
+  const loganState = getLoganState();
+
+  // ASLEEP — deep sleep, won't reply until wakeAt
+  if (loganState.status === 'asleep') {
+    const wakeAt = loganState.wakeAt || (loganState.stateUntil);
+    const hrsUntilWake = Math.max(0.25, (wakeAt - Date.now()) / 3600000);
+    const delayMin = Math.round(hrsUntilWake * 60) + Math.floor(Math.random() * 15);
+    return { min: delayMin, max: delayMin + 30, label: 'sleeping', uxDelay: false };
   }
-  // Class / busy: 8AM-12PM, 1PM-3PM → can't check phone often
+
+  // AWAKE — determine reply speed based on time slot
+  // Just woke up: 6-8AM weekday / 6-9AM weekend — groggy
+  if (!isWeekend && localHr >= 6 && localHr < 8) {
+    return { min: 10, max: 35, label: 'waking up', uxDelay: true };
+  }
+  if (isWeekend && localHr >= 6 && localHr < 9) {
+    return { min: 15, max: 45, label: 'waking up', uxDelay: true };
+  }
+  // Class / busy: 8AM-12PM, 1PM-3PM
   if ((localHr >= 8 && localHr < 12) || (localHr >= 13 && localHr < 15)) {
-    if (isWeekend) { return { min: 2, max: 10, label: 'around', uxDelay: true }; }
-    return { min: 15, max: 90, label: 'in class', uxDelay: false };
+    return { min: 5, max: 30, label: 'in class', uxDelay: true };
   }
-  // Lunch break: 12PM-1PM → phone out, faster
+  // Lunch break: 12PM-1PM
   if (localHr >= 12 && localHr < 13) {
-    return { min: 1, max: 8, label: 'lunch', uxDelay: true };
+    return { min: 1, max: 5, label: 'lunch', uxDelay: true };
   }
-  // Practice: 3PM-6PM → on ice or in gym, can't reply
+  // Practice: 3PM-6PM
   if (localHr >= 15 && localHr < 18) {
-    if (isWeekend) { return { min: 1, max: 5, label: 'around', uxDelay: true }; }
-    return { min: 30, max: 120, label: 'at practice', uxDelay: false };
+    return { min: 10, max: 45, label: 'at practice', uxDelay: true };
   }
-  // Evening: 6PM-10PM → free, quick replies (UX-friendly)
+  // Evening: 6PM-10PM — free, quick replies
   if (localHr >= 18 && localHr < 22) {
-    return { min: 0.05, max: 0.5, label: 'free', uxDelay: true };
+    return { min: 0.05, max: 1, label: 'free', uxDelay: true };
   }
-  // Late night: 10PM-12AM → winding down but still up
-  return { min: 2, max: 20, label: 'night', uxDelay: true };
+  // Late night: 10PM-12AM — still up (if we got here, state says awake)
+  return { min: 0.5, max: 3, label: 'night', uxDelay: true };
 }
 
 // Returns a "at a glance" status for Logan
 function getLoganStatus() {
   const range = getLoganDelay();
+  const loganState = getLoganState();
+
+  // If asleep, show wake-up time
+  if (range.label === 'sleeping' && loganState.wakeAt) {
+    const wakeDate = new Date(loganState.wakeAt);
+    const wakeStr = wakeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `😴 Asleep — back around ${wakeStr}`;
+  }
+
   const labels = {
     'sleeping': '😴 Asleep — it\'s late',
     'waking up': '🥱 Just waking up, might be slow',
@@ -1428,8 +1514,13 @@ async function sendMessage() {
     }
   } catch(e) {
     typingEl.classList.remove('show');
-    appendMessage('logan', 'Shit, bad connection. Try again?');
-    console.error('API error:', e);
+    console.error('[sendMessage] FAILED:', e);
+    // Show visible error in chat so user knows what happened
+    const errMsg = document.createElement('div');
+    errMsg.className = 'msg-row logan error-msg';
+    errMsg.innerHTML = `<div class="bubble">⚠️ API error: ${e.message || e}</div>`;
+    messagesEl.appendChild(errMsg);
+    scrollToBottom();
     isProcessing = false;
   }
 }
@@ -1831,7 +1922,7 @@ window.addEventListener('appinstalled', () => {
 });
 
 // Send notification when Logan replies (desktop + PWA mobile)
-// v4.2.4: Fix notification timing + recover dedup from Supabase
+// v4.3.0: Use visibilityState for reliable PWA background detection
 function sendDesktopNotification(replyText) {
   if (localStorage.getItem('notifyDesktop') !== 'true') return;
 
@@ -1840,9 +1931,10 @@ function sendDesktopNotification(replyText) {
 
   // Delay to avoid firing while page is still loading/focusing
   setTimeout(() => {
-    // Skip if user is actively looking at the conversation right now
-    if (document.hasFocus() && !document.hidden) {
-      console.log('[Notify] Page is active, skipping desktop notification');
+    // Skip ONLY if page is truly visible and focused (not just "has focus" in PWA)
+    // Use visibilityState which correctly detects PWA backgrounded state
+    if (document.visibilityState === 'visible' && document.hasFocus()) {
+      console.log('[Notify] Page is visible & focused, skipping notification');
       return;
     }
 
@@ -2240,6 +2332,24 @@ async function restoreChatHistory(force = false) {
   if (!history || history.length === 0) {
     history = loadLocalMemory();
     if (history.length > 0) updateMemoryBadge(history.length, false);
+  }
+  // Deduplicate: remove identical consecutive messages (same role+content back-to-back)
+  // This handles Supabase duplicate inserts without removing intentional repeated messages
+  if (history && history.length > 0) {
+    const deduped = [];
+    for (let i = 0; i < history.length; i++) {
+      const cur = history[i];
+      // Skip if same role+content as the previous entry (strict duplicate)
+      if (i > 0) {
+        const prev = history[i - 1];
+        if (cur.role === prev.role && cur.content === prev.content) {
+          console.log('[Restore] Skipping duplicate message:', cur.content.substring(0, 30));
+          continue;
+        }
+      }
+      deduped.push(cur);
+    }
+    history = deduped;
   }
   // Render
   if (history && history.length > 0) {
