@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.3.0">
+<meta name="version" content="v4.3.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1392,7 +1392,7 @@ async function recoverPendingReplies() {
 let isProcessing = false;
 
 // ============================================================
-// SEND MESSAGE (v4.1: realistic schedule + backend-pending + no status popup + debounce)
+// SEND MESSAGE (v4.3.1: cross-tab lock to prevent PWA+browser double-send)
 // ============================================================
 async function sendMessage() {
   if (isProcessing) {
@@ -1413,6 +1413,18 @@ async function sendMessage() {
     return;
   }
   window._lastSendTime = now;
+
+  // Cross-tab lock: prevent PWA + browser tabs from both processing the same message
+  // Uses localStorage as shared state between tabs/instances
+  const lockKey = 'loganSendLock';
+  const lockTs = parseInt(localStorage.getItem(lockKey) || '0');
+  if (now - lockTs < 3000) {
+    // Another tab sent within 3 seconds — skip (prevent duplicate API calls)
+    isProcessing = false;
+    console.log('[sendMessage] Cross-tab lock active, skipping (another instance is processing)');
+    return;
+  }
+  localStorage.setItem(lockKey, String(now));
 
   // Check if replying
   let apiText = text;
@@ -1472,6 +1484,7 @@ async function sendMessage() {
       appendMessage('logan', reply);
       await addMessage('assistant', reply);
       sendDesktopNotification(reply);
+      localStorage.removeItem('loganSendLock'); // release cross-tab lock
       isProcessing = false;
 
     } else {
@@ -1510,11 +1523,13 @@ async function sendMessage() {
           console.warn('[Pending] Store error:', e);
         }
       }
+      localStorage.removeItem('loganSendLock'); // release cross-tab lock
       isProcessing = false;
     }
   } catch(e) {
     typingEl.classList.remove('show');
     console.error('[sendMessage] FAILED:', e);
+    localStorage.removeItem('loganSendLock'); // release lock on error too
     // Show visible error in chat so user knows what happened
     const errMsg = document.createElement('div');
     errMsg.className = 'msg-row logan error-msg';
@@ -1922,12 +1937,23 @@ window.addEventListener('appinstalled', () => {
 });
 
 // Send notification when Logan replies (desktop + PWA mobile)
-// v4.3.0: Use visibilityState for reliable PWA background detection
+// v4.3.1: Fix icon — SW showNotification requires https:// URL, not base64 data URL
 function sendDesktopNotification(replyText) {
   if (localStorage.getItem('notifyDesktop') !== 'true') return;
 
+  // Check permission first — if not granted, request it now
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(p => {
+      if (p === 'granted') sendDesktopNotification(replyText);
+    });
+    return;
+  }
+  if ('Notification' in window && Notification.permission !== 'granted') return;
+
   const preview = replyText.length > 100 ? replyText.substring(0, 97) + '...' : replyText;
-  const icon = (typeof AVATARS !== 'undefined' && AVATARS[currentAvatarIdx]) ? AVATARS[currentAvatarIdx] : '';
+  // IMPORTANT: SW showNotification does NOT support base64 data URLs as icon.
+  // Must use a hosted URL. Use the PWA icon as notification icon.
+  const icon = '/logan-chat/icon-192.png';
 
   // Delay to avoid firing while page is still loading/focusing
   setTimeout(() => {
@@ -1937,9 +1963,10 @@ function sendDesktopNotification(replyText) {
       console.log('[Notify] Page is visible & focused, skipping notification');
       return;
     }
+    console.log('[Notify] Sending notification, visState:', document.visibilityState, 'hasFocus:', document.hasFocus());
 
     const trySW = () => {
-      if (swRegistration && 'showNotification' in swRegistration) {
+      if (swRegistration && 'showNotification' in swRegistration && Notification.permission === 'granted') {
         swRegistration.showNotification('John Logan', {
           body: preview,
           icon: icon,
