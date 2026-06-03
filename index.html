@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.3.1">
+<meta name="version" content="v4.3.2">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1133,6 +1133,11 @@ function _saveLoganState(s) {
 
 // Returns current Logan state, rolling a new one if expired or missing
 function getLoganState() {
+  // ── DEBUG MODE: always awake for testing ──
+  if (localStorage.getItem('debugInstantReply') === '1') {
+    return { status: 'awake', stateUntil: Date.now() + 86400000, wakeAt: null };
+  }
+  // ── END DEBUG MODE ──
   const now = Date.now();
   const saved = _loadLoganState();
 
@@ -1188,6 +1193,11 @@ function getLoganState() {
 }
 
 function getLoganDelay() {
+  // ── DEBUG MODE: instant reply for testing notifications ──
+  if (localStorage.getItem('debugInstantReply') === '1') {
+    return { min: 0.02, max: 0.05, label: 'debug', uxDelay: true };
+  }
+  // ── END DEBUG MODE ──
   const now = new Date();
   const localHr = now.getHours();
   const localMin = now.getMinutes();
