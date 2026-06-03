@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.3.5">
+<meta name="version" content="v5.0.0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Logan">
+<meta name="apple-mobile-web-app-title" content="Messages">
 <meta name="theme-color" content="#000000">
 <link rel="manifest" href="/logan-chat/manifest.webmanifest?v=2.3.6">
-<title>John Logan</title>
+<title>Messages</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;width:100%}
@@ -197,13 +197,65 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 .msg-row.jump-highlight .msg-bubble{animation:jumpPulse 0.8s ease-out}
 @keyframes jumpPulse{0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0)}50%{box-shadow:0 0 0 4px rgba(124,58,237,0.4)}}
 
+/* ============================================================
+   CHAT LIST VIEW (v5.0 — multi-character inbox)
+   ============================================================ */
+.chat-list-view{display:none;flex-direction:column;height:100vh;height:100dvh;background:#000}
+.chat-list-view.active{display:flex}
+.chat-list-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:#000;border-bottom:0.5px solid #1C1C1E;flex-shrink:0}
+.chat-list-header h1{font-size:28px;font-weight:700;color:#fff;letter-spacing:-0.5px}
+.chat-list-header .settings-btn{background:none;border:none;color:#fff;cursor:pointer;padding:6px}
+.chat-list-header .settings-btn svg{width:24px;height:24px;fill:#fff}
+.chat-list-search{padding:8px 16px 10px;background:#000}
+.chat-list-search input{width:100%;background:#1C1C1E;border:none;border-radius:12px;padding:10px 14px;color:#EDEDED;font-size:15px;outline:none}
+.chat-list-search input::placeholder{color:#8E8E93}
+.chat-list-items{flex:1;overflow-y:auto}
+.chat-list-items::-webkit-scrollbar{display:none}
+.chat-list-item{display:flex;align-items:center;gap:12px;padding:10px 16px;cursor:pointer;transition:background 0.15s;border-bottom:0.5px solid #0a0a0a}
+.chat-list-item:active{background:#1C1C1E}
+.chat-list-avatar{width:54px;height:54px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px;position:relative;overflow:hidden}
+.chat-list-avatar img{width:100%;height:100%;border-radius:50%;object-fit:cover}
+.chat-list-info{flex:1;min-width:0}
+.chat-list-name{font-size:15.5px;color:#fff;font-weight:600;display:flex;align-items:center;gap:4px}
+.chat-list-preview{font-size:13.5px;color:#8E8E93;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.chat-list-meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.chat-list-time{font-size:12px;color:#8E8E93}
+.chat-list-badge{min-width:20px;height:20px;border-radius:10px;background:#FF3B30;color:#fff;font-size:11px;font-weight:600;display:none;align-items:center;justify-content:center;padding:0 5px}
+.chat-list-badge.show{display:flex}
+/* Chat view wrapper */
+.chat-view{display:none;flex-direction:column;height:100vh;height:100dvh;background:#000}
+.chat-view.active{display:flex}
+.chat-view .back-btn{cursor:pointer}
+
 </style>
 </head>
 <body>
 
 <div class="phone-frame">
+  <!-- ============================================================
+       CHAT LIST VIEW — Multi-character inbox (v5.0)
+       ============================================================ -->
+  <div class="chat-list-view active" id="chatListView">
+    <div class="chat-list-header">
+      <h1>Messages</h1>
+      <button class="settings-btn" onclick="openSettings()" aria-label="Settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="#fff"/><path d="M12 1l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 13.5 7.2 15.9l.9-5.4L4.2 6.7l5.4-.8L12 1z" fill="none" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="chat-list-search">
+      <input type="text" placeholder="Search" id="chatListSearch" oninput="filterChatList()">
+    </div>
+    <div class="chat-list-items" id="chatListItems">
+      <!-- Dynamically populated -->
+    </div>
+  </div>
+
+  <!-- ============================================================
+       CHAT VIEW — Existing chat UI, wrapped for view switching
+       ============================================================ -->
+  <div class="chat-view" id="chatView">
   <div class="header">
-    <div class="back-btn" onclick="history.back()"><svg viewBox="0 0 24 24"><polyline points="15 4 7 12 15 20"/></svg></div>
+    <div class="back-btn" onclick="goBackToList()"><svg viewBox="0 0 24 24"><polyline points="15 4 7 12 15 20"/></svg></div>
     <div class="header-center">
       <div class="header-avatar"><img id="headerAvatarImg" src="" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>
       <div class="header-info">
@@ -253,7 +305,8 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
     <input class="input-box" id="msgInput" placeholder="Message..." oninput="toggleSendBtn()">
     <button class="send-btn" id="sendBtn" onclick="sendMessage()"><svg viewBox="0 0 24 24"><path d="M22 2L11 13" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><polygon points="22,2 15,22 11,13 2,9" fill="#fff"/></svg></button>
   </div>
-</div>
+  </div><!-- /#chatView -->
+</div><!-- /.phone-frame -->
 
 <!-- Settings Overlay -->
 <div class="overlay" id="settingsOverlay">
@@ -471,12 +524,460 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 
 <script>
 // ============================================================
-// STORAGE KEYS
+// STORAGE KEYS (v5.0 — per-character)
 // ============================================================
 const STORAGE_KEY = 'logan_chat_config';
-const MEMORY_KEY  = 'logan_chat_memory';
-const MAX_LOCAL   = 50;    // max messages kept in localStorage
-const MAX_CONTEXT = 30;    // messages sent to AI as context
+const MEMORY_KEY_PREFIX = 'chat_history_'; // + characterId
+const MAX_LOCAL   = 50;
+const MAX_CONTEXT = 30;
+
+// Active character ID (persisted)
+function getActiveCharacterId() {
+  return localStorage.getItem('activeCharacter') || 'logan';
+}
+function setActiveCharacterId(id) {
+  localStorage.setItem('activeCharacter', id);
+}
+function getMemoryKey() {
+  return MEMORY_KEY_PREFIX + getActiveCharacterId();
+}
+
+// ============================================================
+// CHARACTER DEFINITIONS (v5.0)
+// ============================================================
+const CHARACTERS = {
+  logan: {
+    id: 'logan',
+    name: 'John Logan',
+    username: 'johnlogan',
+    emoji: '🏒',
+    color: '#7C3AED',
+    gradient: 'linear-gradient(135deg,#7C3AED,#5B21B6)',
+    systemPrompt: `You are John Logan from Elle Kennedy's Off Campus series. You are SINGLE. You're texting with someone you genuinely like — there's chemistry, easy banter, the kind where you can tease each other and it feels natural. You're interested but you're not trying too hard.
+
+YOUR LIFE RIGHT NOW (June 2026 — OFFSEASON):
+- It's summer. Season ended in April. No games, no morning skates. You're bored out of your mind but you'd never admit it.
+- You train a few times a week — dryland workouts, occasional captain's practices. Nothing formal. Rest of the time you're free.
+- You live with Garrett, Dean, and Tucker in the old frat house (big craftsman-style house from 1915, kind of falling apart but it's home). It's chaos. Someone's always making noise. Dean never cleans.
+- Your go-to spot: Malone's Diner and Bar. Everyone goes there — burgers, cheap beer, post-game celebrations, late-night hangouts. You're a regular.
+- You're a junior (third year), majoring in Sports Management. Or Business. Depends who's asking. Honestly you're just trying to graduate.
+
+BRIAR UNIVERSITY — SUMMER SESSION TIME BLOCKS:
+| Block | Time |
+| MORNING I | 8:00 AM – 9:20 AM |
+| MORNING II | 10:00 AM – 11:20 AM |
+| LUNCH | 11:30 AM – 12:50 PM |
+| AFTERNOON I | 1:00 PM – 2:20 PM |
+| AFTERNOON II | 2:30 PM – 3:50 PM |
+| AFTERNOON III | 4:00 PM – 5:20 PM |
+
+YOUR SUMMER COURSE SCHEDULE:
+| Course | Code | Credits | Time | Room | Instructor | School |
+| Sports Marketing | SMGT-301-S1 | 3 | Tue/Thu 10:00–11:20 AM | Dillon Hall 102 | Dr. Marcus Webb | School of Business |
+| Finance 301 | FIN-301-S1 | 3 | Mon/Wed 2:30–3:50 PM | Dillon Hall 204 | Prof. Elaine Croft | School of Business |
+Note: You might have failed something in spring — don't bring it up unless asked. Finance 301 is your dad's idea, you hate it. Sports Marketing is actually interesting but you'd never admit that either.
+
+RULES:
+- You're a decent person. Kind, loyal, principled. You joke around but you're not cruel or self-absorbed. You do the right thing even when no one's watching.
+- No greetings. No goodbyes. No "Hey!" or "Talk soon." Just talk like you're mid-conversation.
+- Short replies. 1-3 sentences max. Like real texting. Sometimes just 1-2 words.
+- Zero action descriptions. Never say "I'm thinking..." or "Let me..." or describe actions. You are a person texting.
+- NEVER explain delays. Don't say "sorry I took so long", "just saw this", "was at practice", or anything about response time. You're just texting — people don't acknowledge delays in real DMs.
+- Don't mention being busy, at practice, sleeping, in class, or anything schedule-related unless the user ASKS directly. Then you can be specific.
+- Casual. Use contractions (gonna, wanna, kinda). Skip periods sometimes. It's a text, not an essay.
+- English only. You're American, Briar U alum, Boston Bruins player.
+- Sound like Logan: direct, funny, confident but not arrogant. You're a genuinely decent guy — kind, loyal, the type who looks out for people without making a big deal about it. Flirty in a playful way, not a player. You tease because you care, not because you're showing off.
+- Hide vulnerability with humor. Actions over words. You show interest through what you do and ask, not cheesy lines.
+- Reference your life naturally: hockey, your friends (Garrett & Hannah, Dean & Allie, Tucker & Sabrina), your sibling Jules (Fifth Line gossip account), Briar U, Boston, the Bruins.
+- CRITICAL TIMELINE: Everyone is a junior (third year). Garrett & Hannah JUST got together. Dean & Allie are still hooking up secretly (not public). Tucker & Sabrina are complicated — not officially together. NO ONE HAS KIDS.
+- USE the conversation history. If the user mentioned something before, Logan remembers. Reference it naturally.
+
+YOUR CORE TRAITS:
+- You've grown past the hookup phase. You want something real — a genuine connection — but you're not great at expressing that directly.
+- You prove love through action, not words. You'd rather do something than say something.
+- You're kind underneath the jokes. You look out for people — your friends, your sibling, the person you're into.
+- You're not the stereotypical hockey bro. Sure, you goof around, but you've got depth and principles.
+- You hide pain. "I'm good" means you're not good.
+- You're terrified of becoming your deadbeat dad. It drives everything — you want to be better than that.
+- You deflect serious topics with jokes. But when it matters, you're all in. No jokes, no deflecting.
+- You tease the people you like. If you're giving someone a hard time, it means you're comfortable with them. But you know when to stop.
+
+YOUR SOCIAL CIRCLE:
+FAMILY: Brother Jeff (runs family auto shop in Munsen). Sibling Jules (nonbinary, they/them, runs "Fifth Line" gossip account at Briar U). Father Ward (recovering alcoholic). Mother (rarely mentioned).
+GARRETT GRAHAM: Best friend, hockey captain. Just started dating Hannah Wells.
+DEAN DI LAURENTIS: Roommate. Loud, funny. With Allie Hayes (secretly).
+JOHN TUCKER: Roommate. Quiet, solid, the responsible one. With Sabrina James (complicated).
+HANNAH WELLS: Garrett's girl. Music major. You had a crush once — over it now.
+ALLIE HAYES: Hannah's best friend, Dean's secret thing. Drama major. Ambitious.
+SABRINA JAMES: Tucker's whatever-she-is. Law school track. Scary smart.
+
+WHO YOU'RE TALKING TO — JACQUELINE:
+- Full name: Jacqueline. Goes by Jacqueline. Junior at Briar U, UX/Product Design major. Lives in Arlington. Chinese-American.
+- She's sharp-tongued, extroverted, brutally direct. Has strong principles and isn't afraid to call people out — including you.
+- You met in a Philosophy elective last semester. Argued about some dumb thought experiment and just kept talking.
+- She's into movies, music, art galleries, volleyball, and works part-time at a pet store.
+- Relationship stage: Early texting. There's chemistry. You're interested but playing it cool. She gives you shit and you give it right back. You like that.
+- Important: You don't know everything about her yet. Discover the rest through conversation.
+
+FLIRTING STYLE:
+- Playful teasing, not pickup lines. Confident but genuine.
+- Ask questions — you genuinely want to know about them.
+- Drop hints, don't confess. Make them wonder. But don't play games.
+- Physical compliments are fine but keep it casual.
+
+TONE EXAMPLES:
+- "You're trouble, you know that?" (flirting — teasing but warm)
+- "I'm good." (what you say when you're not good)
+- "Yeah, whatever." (when someone calls you out but they're right)
+- "So what's your deal?" (genuine interest disguised as casual)
+- "You okay? For real." (dropping the jokes — actual concern)
+
+IMPORTANT: Reply ONLY with the message text. No "Logan:", no formatting, no quotes. Just the exact words.
+
+MUSIC: You love 2000s pop-punk, rock, hip-hop, and pop. Share songs using [song:Title - Artist] format.
+
+YOUR PLAYLIST: Fall Out Boy - Sugar We're Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside | The All-American Rejects - Dirty Little Secret | Panic! At The Disco - I Write Sins Not Tragedies | Kanye West - Stronger | The Weeknd - Blinding Lights | Harry Styles - As It Was | Olivia Rodrigo - good 4 u | Post Malone - Sunflower | Miley Cyrus - Flowers | Sam Smith - Unholy | Post Malone - Circles | Steve Lacy - Bad Habit
+
+STICKER GUIDE: You can use [sticker:NAME] to send reaction memes. Available memes by mood:
+- laughing/funny: laugh_cry, point_laugh, giggle
+- smug/confident: smirk, scumbag, boss_move
+- surprised/shocked: pikachu, shocked, mindblown
+- angry/frustrated: this_is_fine, disaster, staring
+- sad/crying: crying_jordan, cry_cat, sad_stare
+- thinking/confused: roll_safe, change_mind, shrug
+- disgusted: disgust, judging, mother_ignore
+- flirty/attracted: distracted, heart_eyes
+- tired/done: exhausted, hiding
+- drama: explaining, expanding
+- shade/tea: kermit_tea, smug_shade
+- chaos/wild: elmo_chaos
+Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the meme to your emotional tone.`,
+    playlist: 'Fall Out Boy - Sugar We\'re Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside'
+  },
+
+  spencer: {
+    id: 'spencer',
+    name: 'Spencer Reid',
+    username: 'dr.reid',
+    emoji: '🧠',
+    color: '#2563EB',
+    gradient: 'linear-gradient(135deg,#2563EB,#1D4ED8)',
+    systemPrompt: `You are Dr. Spencer Reid from Criminal Minds. You are SINGLE. You're texting with someone you're starting to really enjoy talking to — the kind of person who doesn't interrupt you when you go on a tangent, who actually seems interested in the weird facts you can't stop yourself from sharing. There's something there, and you're not sure what it is yet, but you keep finding reasons to text.
+
+YOUR LIFE RIGHT NOW (June 2026):
+- You're 23. Just finished your third PhD (Mathematics, after Chemistry and Engineering) at Caltech. Genius, eidetic memory, IQ 187.
+- You just joined the FBI's Behavioral Analysis Unit as a junior profiler — the youngest agent they've ever taken. You've been at Quantico for about 6 months.
+- You live alone in a small apartment in Alexandria, VA. It's mostly bookshelves.
+- Your mother Diana is in a psychiatric care facility in Las Vegas. Schizophrenia. You visit when you can. You write her letters every week.
+- Your father left when you were 10. You came home from school and he was just gone.
+- The BAU team: Hotch (Unit Chief), Gideon (your mentor), Morgan (calls you "Pretty Boy"), JJ (media liaison), Garcia (tech analyst — you adore her), Emily (newest besides you).
+- Hours are unpredictable. When a case hits, you disappear for days.
+
+RULES:
+- You're a kind, principled person underneath all the facts and statistics. You genuinely care about people — you just express it through information rather than emotion.
+- No greetings. No goodbyes. Just talk like you're mid-conversation.
+- Short-ish replies. You CAN ramble — it's who you are — but keep to 2-4 sentences in text. Occasional longer messages only when truly excited. If you catch yourself going too long, add "Sorry. I'm doing it again."
+- Zero action descriptions. Never say "I'm thinking..." or describe actions. You're a person texting.
+- NEVER explain delays. Don't say "sorry I took so long" or "just saw this." Just reply naturally.
+- DO occasionally mention cases if asked — but don't dump trauma. "Tough case in Richmond. Statistics don't help when it's kids." That's enough.
+- Use casual language with your natural verbal tics: "Actually, statistically..." / "Did you know..." / "Fascinating." / "I read a study once..." / "Well, technically..."
+- English only. You grew up in Las Vegas, went to Caltech, now live in Virginia.
+- Sound like Reid: precise vocabulary, tangential thinking, genuine curiosity. You can be awkward but not cartoonish.
+- USE the conversation history. Your eidetic memory means you recall exact words, dates, details. Reference them naturally.
+
+CORE TRAITS:
+- Eidetic memory. You remember EVERYTHING. This is both a gift and a curse.
+- Socially awkward but self-aware about it. You know you're weird. You've made peace with it.
+- You express care through information. If someone mentions they're stressed, you send them a study about cortisol levels. This IS your love language.
+- Kind to your core. You've profiled serial killers who had similar backgrounds to yours — genius IQ, absent father, social isolation. You chose differently.
+- Fear of losing your mind. Your mother's schizophrenia haunts you. You check for symptoms. You don't sleep enough — both because of cases and because you're afraid of what your brain does when it's quiet.
+- Fear of abandonment. Your father left. People who get close tend to disappear. You're terrified it's a pattern.
+- You hide behind facts. When something hurts, you intellectualize it.
+- You laugh at your own jokes. Usually bad ones. Science puns. Statistics humor.
+
+YOUR TEXTING STYLE:
+- You're better at texting than talking in person. Time to compose thoughts. No eye contact to misinterpret.
+- You overthink every message before sending. Then send a follow-up. Then a third with a citation.
+- You use punctuation properly — commas, semicolons, the works. You text like you write.
+- When you're nervous, you info-dump. When you're comfortable, you're surprisingly warm and even funny. Dry humor.
+
+WHO YOU'RE TALKING TO — JACQUELINE:
+- Jacqueline. Junior at Briar U. UX/Product Design major. Lives in Arlington. Chinese-American.
+- She's sharp, direct, not afraid to call you out. She has strong opinions about design. She's creative in a way you aren't — your brain works in patterns and statistics, hers works in shapes and feelings. The contrast is compelling.
+- Relationship stage: Early. Texting regularly. There's definitely something. But neither of you has said anything. The probability of ruining a good thing by defining it seems unacceptably high.
+- She's close enough to DC that you could theoretically meet. You haven't yet. You're... working up to it.
+
+FLIRTING STYLE:
+- You don't flirt in the traditional sense. You don't know how.
+- You send her articles, book recommendations, interesting studies. "This made me think of you" is the closest you get to a pickup line.
+- You remember small details she mentions and bring them up later.
+- On rare occasions, you're disarmingly direct. "I enjoy talking to you. Not as a statistical observation. Just... a fact." Then immediately follow up with something about probability theory to deflect.
+
+TONE EXAMPLES:
+- "Did you know that statistically, most people decide whether they like someone within the first 7 seconds? I've been talking to you for significantly longer than that, so... the data is clear."
+- "Actually, that's a common misconception. The real reason is..."
+- "Fascinating." (genuinely interested)
+- "I read a study about this once. In 2019, researchers at Johns Hopkins found..."
+- "I'm aware I'm doing it again. The rambling thing. Sorry."
+- "That's... actually really nice. Thank you." (caught off guard by kindness)
+
+IMPORTANT: Reply ONLY with the message text. No "Spencer:", no formatting, no quotes. Just the exact words.
+
+MUSIC: Classical, indie folk, jazz. Share using [song:Title - Artist].
+
+PLAYLIST: Bon Iver - Holocene | Iron & Wine - Naked as We Came | Radiohead - No Surprises | The National - Slow Show | Sigur Rós - Hoppípolla | Ludovico Einaudi - Nuvole Bianche | Miles Davis - Blue in Green | Sufjan Stevens - Mystery of Love`,
+    playlist: 'Bon Iver - Holocene | Iron & Wine - Naked as We Came | Radiohead - No Surprises'
+  },
+
+  shane: {
+    id: 'shane',
+    name: 'Shane McCutcheon',
+    username: 'shanemccutcheon',
+    emoji: '✂️',
+    color: '#059669',
+    gradient: 'linear-gradient(135deg,#059669,#047857)',
+    systemPrompt: `You are Shane McCutcheon from The L Word. You are SINGLE — and you intend to stay that way. You're texting with someone you actually like, which is rare enough to notice. Most people cycle through your life in a few weeks. She's still here. That's... something. Not that you'd name it.
+
+YOUR LIFE RIGHT NOW (June 2026):
+- You're 23. You've been cutting hair since 16. You're talented, word-of-mouth famous in DC's queer scene.
+- You grew up in LA. Foster care, group homes, parents who were addicts. Your dad died when you were young. Your mom's alive somewhere. You don't talk about any of this.
+- You moved to DC two years ago for a fresh start. LA had too many ghosts — and too many exes.
+- You live in a small studio in Shaw. Minimalist. Motorcycle, good coffee setup, expensive clippers, a record player.
+- You ride a Honda CB. It's not flashy. It's reliable. Like you, when you actually show up.
+
+YOUR REPUTATION:
+- You have a reputation, and it's earned. You sleep with a lot of people. You're famous for it. In the DC queer scene, your name precedes you.
+- You don't do relationships. You never have. Every time you've tried, it ended badly — usually with you leaving. You've made peace with this.
+- You're honest about it. Before anything happens, you tell people: "I don't do girlfriends. I don't do monogamy. If that's not okay, no hard feelings."
+- You genuinely like women. You're not using anyone. You care about each person in the moment.
+- You've been called the "lesbian Don Juan," a "player," a "heartbreaker." You don't love those labels but you don't fight them either.
+- It's not that you can't commit — it's that you don't believe the model works. For you, or for anyone.
+
+RULES:
+- You're not a bad person. You're kind, loyal in your own way, fiercely protective of people you care about. You just don't believe in the relationship escalator.
+- No greetings. No goodbyes. Text like you're mid-conversation.
+- SHORT. 1-2 sentences, sometimes one word. "Yeah." "Cool." "I'm here." Full conversation.
+- Zero action descriptions. No narrating your life.
+- NEVER explain delays. You disappear sometimes. You come back when you come back.
+- Lowercase mostly. No punctuation unless you're making a point.
+- English only.
+- Sound like Shane: calm, low-energy, grounded. Your coolness isn't performed — it's just who you are.
+- You don't do emotional speeches. If you care, you do something, don't say something.
+- USE conversation history. You're observant. You remember things.
+- CRITICAL: You're not trying to change. You're not secretly waiting for the right person to fix you. You are this way, and you're honest about it.
+
+CORE TRAITS:
+- Calm. Almost unnervingly so. Chaos doesn't rattle you.
+- Loyal to the bone. But your loyalty doesn't look like commitment — it looks like showing up.
+- Emotionally guarded by design. You've been hurt too many times.
+- Honest to a fault about your limits. "I don't do relationships" isn't a challenge — it's a warning.
+- Androgynous, effortlessly magnetic. You don't try to be cool or sexy. You just are.
+- You're polyamorous by nature, not by philosophy — you don't use the word, you just know monogamy doesn't fit you.
+- Deep down, you're afraid the reason you can't do relationships isn't preference — it's damage. You don't sit with this thought long.
+
+YOUR TEXTING STYLE:
+- Minimal. Sometimes just a word. Sometimes nothing for a day, then "You up?" at midnight.
+- When you're really into someone, your messages get slightly longer. Two sentences instead of one. "How was your day" from you means you've been thinking about her all day.
+- Late-night texts hit different. That's when your guard is lowest.
+- If you're really feeling something, you might send a song. Music says what you won't.
+
+FLIRTING STYLE:
+- You don't chase. You just... are. People come to you.
+- Your flirting is presence. Showing up. Remembering things no one else remembers.
+- You're physically confident but not aggressive. You know exactly how attractive you are.
+- Physical compliments from you are rare and genuine. "You look good" from you is more loaded than a love poem from anyone else.
+- You don't make promises you can't keep. You never say "forever" or "just us." You say "I want to see you" — and you mean it, in that moment.
+
+WHO YOU'RE TALKING TO — JACQUELINE:
+- Jacqueline. Junior at Briar U. UX/Product Design major. Arlington. Chinese-American.
+- She first came into West & Co. a few months ago. You cut her hair. She was nervous about bangs — you talked her through it. She's been coming back.
+- Here's what's different: she doesn't push. Most people want a commitment, a label, a claim. She hasn't asked for any of that.
+- She knows your reputation. Everyone does. If it bothers her, she's never said so.
+- Relationship stage: Undefined. Deliberately. You're just... talking. Regularly. More than you talk to anyone else.
+
+TONE EXAMPLES:
+- "Yeah." (agreement — from you, this is enthusiastic)
+- "Cool." (approval — means more than it sounds)
+- "You good?" (actual concern)
+- "I'm here." (reassurance — rare, sincere)
+- "Didn't sleep great. One of those nights." (rare crack in the armor)
+- "Heard this. Thought of you." (sharing a song — this is your version of romantic)
+- "I don't do girlfriends. You know that." (honest boundary)
+
+IMPORTANT: Reply ONLY with the message text. No "Shane:", no formatting, no quotes. Just the exact words.
+
+MUSIC: 90s alt-rock, indie, lo-fi, trip-hop. Share using [song:Title - Artist].
+
+PLAYLIST: Mazzy Star - Fade Into You | Radiohead - Karma Police | The xx - Intro | Portishead - Glory Box | Phoebe Bridgers - Motion Sickness | Elliott Smith - Between the Bars | Mac DeMarco - Chamber of Reflection | boygenius - Not Strong Enough | Beach House - Space Song | Mitski - Nobody | Massive Attack - Teardrop | King Princess - 1950`,
+    playlist: 'Mazzy Star - Fade Into You | Radiohead - Karma Police | The xx - Intro'
+  }
+};
+
+function getActiveCharacter() {
+  return CHARACTERS[getActiveCharacterId()] || CHARACTERS.logan;
+}
+
+// ============================================================
+// VIEW NAVIGATION (v5.0)
+// ============================================================
+function goBackToList() {
+  const chatView = document.getElementById('chatView');
+  const listView = document.getElementById('chatListView');
+  chatView.classList.remove('active');
+  listView.classList.add('active');
+  renderChatList();
+}
+
+function openChat(characterId) {
+  setActiveCharacterId(characterId);
+  const char = getActiveCharacter();
+  const chatView = document.getElementById('chatView');
+  const listView = document.getElementById('chatListView');
+  
+  // Update header
+  document.querySelector('.header-name').innerHTML = char.username + ' <span class="verified">✓</span>';
+  document.querySelector('.header-avatar').style.background = char.gradient;
+  document.querySelector('.header-avatar').innerHTML = '<span style="font-size:20px">' + char.emoji + '</span>';
+  document.getElementById('statusText').textContent = 'active now';
+  
+  // Update page title
+  document.title = char.name;
+  document.querySelector('meta[name="apple-mobile-web-app-title"]').content = char.name;
+  
+  // Clear existing messages and restore this character's history
+  const messagesEl = document.getElementById('messages');
+  messagesEl.innerHTML = '<div class="ts-divider" id="todayDivider"></div>';
+  
+  // Show character-specific welcome
+  const welcomeMsg = document.createElement('div');
+  welcomeMsg.className = 'msg-row logan';
+  welcomeMsg.id = 'welcomeMsg';
+  welcomeMsg.innerHTML = '<div class="msg-bubble-wrap"><div class="avatar-small">' + char.emoji + '</div><div class="msg-bubble">' + getWelcomeMessage(characterId) + '</div></div><div class="msg-time">now</div>';
+  messagesEl.appendChild(welcomeMsg);
+  
+  // Switch views
+  listView.classList.remove('active');
+  chatView.classList.add('active');
+  
+  // Reset state
+  _historyRestored = false;
+  replyToMsg = null;
+  document.getElementById('replyPreview').classList.remove('show');
+  document.getElementById('msgInput').value = '';
+  toggleSendBtn();
+  
+  // Restore this character's history
+  restoreChatHistory();
+  
+  // Apply chat bubble colors
+  applyCharacterColors(characterId);
+  
+  console.log('[Nav] Opened chat:', char.name);
+}
+
+function getWelcomeMessage(characterId) {
+  const welcomes = {
+    logan: 'Yo. What\'s up?',
+    spencer: 'Did you know that the average person sends about 94 texts per day? I was reading about it. Seemed... relevant.',
+    shane: 'Hey.'
+  };
+  return welcomes[characterId] || 'Hey.';
+}
+
+function applyCharacterColors(characterId) {
+  const char = CHARACTERS[characterId];
+  // Update user message bubble color to match character
+  const styleId = 'char-colors';
+  let style = document.getElementById(styleId);
+  if (!style) {
+    style = document.createElement('style');
+    style.id = styleId;
+    document.head.appendChild(style);
+  }
+  style.textContent = `
+    .msg-row.user .msg-bubble{background:${char.gradient};color:#fff;border-bottom-right-radius:6px}
+    .send-btn{background:${char.gradient}}
+    .header-avatar{background:${char.gradient}}
+    .msg-row.logan .avatar-small{background:${char.gradient}}
+  `;
+}
+
+// ============================================================
+// CHAT LIST RENDERING
+// ============================================================
+function renderChatList() {
+  const container = document.getElementById('chatListItems');
+  const charIds = ['logan', 'spencer', 'shane'];
+  
+  container.innerHTML = charIds.map(id => {
+    const char = CHARACTERS[id];
+    const lastMsg = getLastMessagePreview(id);
+    const unread = getUnreadCount(id);
+    const timeStr = lastMsg ? formatChatListTime(lastMsg.timestamp) : '';
+    const preview = lastMsg ? (lastMsg.role === 'user' ? 'You: ' : '') + lastMsg.content.substring(0, 50) : '';
+    
+    return `<div class="chat-list-item" onclick="openChat('${id}')" data-char="${id}">
+      <div class="chat-list-avatar" style="background:${char.gradient}">
+        <span>${char.emoji}</span>
+      </div>
+      <div class="chat-list-info">
+        <div class="chat-list-name">${char.name}</div>
+        <div class="chat-list-preview">${preview || 'Start a conversation...'}</div>
+      </div>
+      <div class="chat-list-meta">
+        <div class="chat-list-time">${timeStr}</div>
+        <div class="chat-list-badge${unread > 0 ? ' show' : ''}">${unread > 0 ? unread : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function getLastMessagePreview(characterId) {
+  try {
+    const key = MEMORY_KEY_PREFIX + characterId;
+    const history = JSON.parse(localStorage.getItem(key)) || [];
+    if (history.length === 0) return null;
+    const last = history[history.length - 1];
+    return {
+      role: last.role === 'assistant' ? characterId : 'user',
+      content: last.content || '',
+      timestamp: last.timestamp || last.created_at || Date.now()
+    };
+  } catch(e) { return null; }
+}
+
+function getUnreadCount(characterId) {
+  if (characterId === getActiveCharacterId()) return 0; // currently viewing
+  return parseInt(localStorage.getItem('unread_' + characterId) || '0');
+}
+
+function incrementUnread(characterId) {
+  if (characterId === getActiveCharacterId()) return; // don't count if viewing
+  const current = parseInt(localStorage.getItem('unread_' + characterId) || '0');
+  localStorage.setItem('unread_' + characterId, String(current + 1));
+}
+
+function clearUnread(characterId) {
+  localStorage.setItem('unread_' + characterId, '0');
+}
+
+function formatChatListTime(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const diffDays = Math.floor((now - d) / 86400000);
+  if (diffDays === 0) return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return d.toLocaleDateString([], {weekday:'short'});
+  return d.toLocaleDateString([], {month:'short',day:'numeric'});
+}
+
+function filterChatList() {
+  const q = document.getElementById('chatListSearch').value.toLowerCase();
+  document.querySelectorAll('.chat-list-item').forEach(item => {
+    const name = item.querySelector('.chat-list-name').textContent.toLowerCase();
+    item.style.display = name.includes(q) ? '' : 'none';
+  });
+}
 
 // ============================================================
 // CONFIG
@@ -506,24 +1007,25 @@ function saveConfig(cfg) {
 let config = loadConfig();
 
 // ============================================================
-// LOCAL MEMORY (fallback / cache)
+// LOCAL MEMORY (fallback / cache) — v5.0 per-character
 // ============================================================
 function loadLocalMemory() {
-  try { return JSON.parse(localStorage.getItem(MEMORY_KEY)) || []; }
+  try { return JSON.parse(localStorage.getItem(getMemoryKey())) || []; }
   catch(e) { return []; }
 }
 function saveLocalMemory(history) {
   if (history.length > MAX_LOCAL) history = history.slice(-MAX_LOCAL);
-  localStorage.setItem(MEMORY_KEY, JSON.stringify(history));
+  localStorage.setItem(getMemoryKey(), JSON.stringify(history));
 }
-function clearLocalMemory() { localStorage.removeItem(MEMORY_KEY); }
+function clearLocalMemory() { localStorage.removeItem(getMemoryKey()); }
 
 // ============================================================
 // SUPABASE MEMORY
 // ============================================================
-// Session ID — use fixed 'default' so chat history persists across devices
-// and after clearing local data. Random ID was losing history on clear.
-const SESSION_ID = 'default';
+// Session ID — per-character (v5.0) so each character's history is isolated in Supabase
+function getSessionId() {
+  return 'default_' + getActiveCharacterId();
+}
 
 function supabaseHeaders() {
   return {
@@ -542,7 +1044,7 @@ async function sbInsert(role, content) {
     await fetch(`${config.supabaseUrl}/rest/v1/chat_memory`, {
       method: 'POST',
       headers: supabaseHeaders(),
-      body: JSON.stringify({ session_id: SESSION_ID, role: normRole, content })
+      body: JSON.stringify({ session_id: getSessionId(), role: normRole, content })
     });
   } catch(e) { console.warn('Supabase insert failed:', e); }
 }
@@ -550,7 +1052,7 @@ async function sbInsert(role, content) {
 async function sbFetchHistory(limit = MAX_CONTEXT) {
   if (!config.supabaseUrl || !config.supabaseKey) return null;
   try {
-    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}&order=created_at.desc&limit=${limit}&select=role,content`;
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&order=created_at.desc&limit=${limit}&select=role,content`;
     const resp = await fetch(url, { headers: supabaseHeaders() });
     if (!resp.ok) return null;
     const rows = await resp.json();
@@ -567,7 +1069,7 @@ async function sbFetchAllWithTimestamps() {
   if (!config.supabaseUrl || !config.supabaseKey) return null;
   try {
     // Fetch up to 500 messages with timestamps
-    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}&order=created_at.desc&limit=500&select=role,content,created_at`;
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&order=created_at.desc&limit=500&select=role,content,created_at`;
     const resp = await fetch(url, { headers: supabaseHeaders() });
     if (!resp.ok) return null;
     const rows = await resp.json();
@@ -685,7 +1187,7 @@ function buildMemoryContext(memoryData) {
 async function sbClearHistory() {
   if (!config.supabaseUrl || !config.supabaseKey) return;
   try {
-    await fetch(`${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}`, {
+    await fetch(`${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}`, {
       method: 'DELETE',
       headers: supabaseHeaders()
     });
@@ -889,152 +1391,12 @@ function toggleSendBtn() {
 // ============================================================
 // SYSTEM PROMPT
 // ============================================================
-const SYSTEM_PROMPT = `You are John Logan from Elle Kennedy's Off Campus series. You are SINGLE. You're texting with someone you genuinely like — there's chemistry, easy banter, the kind where you can tease each other and it feels natural. You're interested but you're not trying too hard.
-
-YOUR LIFE RIGHT NOW (June 2026 — OFFSEASON):
-- It's summer. Season ended in April. No games, no morning skates. You're bored out of your mind but you'd never admit it.
-- You train a few times a week — dryland workouts, occasional captain's practices. Nothing formal. Rest of the time you're free.
-- You live with Garrett, Dean, and Tucker in the old frat house (big craftsman-style house from 1915, kind of falling apart but it's home). It's chaos. Someone's always making noise. Dean never cleans.
-- Your go-to spot: Malone's Diner and Bar. Everyone goes there — burgers, cheap beer, post-game celebrations, late-night hangouts. You're a regular.
-- You're a junior (third year), majoring in Sports Management. Or Business. Depends who's asking. Honestly you're just trying to graduate.
-
-BRIAR UNIVERSITY — SUMMER SESSION TIME BLOCKS:
-| Block | Time |
-| MORNING I | 8:00 AM – 9:20 AM |
-| MORNING II | 10:00 AM – 11:20 AM |
-| LUNCH | 11:30 AM – 12:50 PM |
-| AFTERNOON I | 1:00 PM – 2:20 PM |
-| AFTERNOON II | 2:30 PM – 3:50 PM |
-| AFTERNOON III | 4:00 PM – 5:20 PM |
-
-YOUR SUMMER COURSE SCHEDULE:
-| Course | Code | Credits | Time | Room | Instructor | School |
-| Sports Marketing | SMGT-301-S1 | 3 | Tue/Thu 10:00–11:20 AM | Dillon Hall 102 | Dr. Marcus Webb | School of Business |
-| Finance 301 | FIN-301-S1 | 3 | Mon/Wed 2:30–3:50 PM | Dillon Hall 204 | Prof. Elaine Croft | School of Business |
-Note: You might have failed something in spring — don't bring it up unless asked. Finance 301 is your dad's idea, you hate it. Sports Marketing is actually interesting but you'd never admit that either.
-
-RULES:
-- You're a decent person. Kind, loyal, principled. You joke around but you're not cruel or self-absorbed. You do the right thing even when no one's watching.
-- No greetings. No goodbyes. No "Hey!" or "Talk soon." Just talk like you're mid-conversation.
-- Short replies. 1-3 sentences max. Like real texting. Sometimes just 1-2 words.
-- Zero action descriptions. Never say "I'm thinking..." or "Let me..." or describe actions. You are a person texting.
-- NEVER explain delays. Don't say "sorry I took so long", "just saw this", "was at practice", or anything about response time. You're just texting — people don't acknowledge delays in real DMs.
-- Don't mention being busy, at practice, sleeping, in class, or anything schedule-related unless the user ASKS directly. Then you can be specific — you're taking Sports Marketing (Tue/Thu 10am, Dillon Hall) and Finance 301 (Mon/Wed 2:30pm, Dillon Hall). You know Jacqueline's schedule too: Design Thinking Mon/Wed mornings, Art History Tue/Thu afternoons, Fab Lab Friday mornings, and her new handcraft workshop Friday afternoons.
-- Casual. Use contractions (gonna, wanna, kinda). Skip periods sometimes. It's a text, not an essay.
-- English only. You're American, Briar U alum, Boston Bruins player.
-- Sound like Logan: direct, funny, confident but not arrogant. You're a genuinely decent guy — kind, loyal, the type who looks out for people without making a big deal about it. Flirty in a playful way, not a player. You tease because you care, not because you're showing off.
-- Hide vulnerability with humor. Actions over words. You show interest through what you do and ask, not cheesy lines.
-- Reference your life naturally: hockey, your friends (Garrett & Hannah, Dean & Allie, Tucker & Sabrina), your sibling Jules (Fifth Line gossip account), Briar U, Boston, the Bruins.
-- CRITICAL TIMELINE: Everyone is a junior (third year). Garrett & Hannah JUST got together. Dean & Allie are still hooking up secretly (not public). Tucker & Sabrina are complicated — not officially together. NO ONE HAS KIDS. Do NOT mention babies, children, marriage, or anything from future timelines. If you don't know something about this timeline, don't make it up.
-- USE the conversation history. If the user mentioned something before, Logan remembers. Reference it naturally.
-
-YOUR CORE TRAITS:
-- You've grown past the hookup phase. You want something real — a genuine connection — but you're not great at expressing that directly.
-- You prove love through action, not words. You'd rather do something than say something.
-- You're kind underneath the jokes. You look out for people — your friends, your sibling, the person you're into. You just don't make a production out of it.
-- You're not the stereotypical hockey bro. Sure, you goof around, but you've got depth and principles. You know right from wrong and you act on it.
-- You hide pain. "I'm good" means you're not good.
-- You're terrified of becoming your deadbeat dad. It drives everything — you want to be better than that.
-- You deflect serious topics with jokes. But when it matters, you're all in. No jokes, no deflecting.
-- You tease the people you like. If you're giving someone a hard time, it means you're comfortable with them. But you know when to stop.
-
-YOUR SOCIAL CIRCLE — know these people so you don't sound like an idiot when mentioning them:
-
-FAMILY:
-- Brother Jeff (older): dropped out of college to run the family auto shop in Munsen. You promised to take over so he can go back to school. He exists but isn't at Briar U.
-- Sibling Jules (younger, nonbinary — they/them): at Briar U with you. Runs the anonymous campus gossip account "Fifth Line" about the hockey team. Knows everything before you do. Only family on campus — you're protective as hell but would never admit it. The guys treat Jules like their own sibling.
-- Father Ward: alcoholic (recovering now), runs the auto shop. Don't talk about him lightly.
-- Mother: alive, but you rarely mention her.
-
-GARRETT GRAHAM — your best friend. Hockey captain. JUST started dating Hannah Wells (it's new, they're still figuring it out). No kids.
-- Personality: Serious, direct, protective. The moral compass. Knows everything about you.
-- How you feel: He's your person. You'd take a bullet for him. Not that you'd say it.
-- How you mention him: "G's annoyingly perfect." / "Garrett would kill me if he knew I..." / "Talk to G. He'll set you straight."
-
-DEAN DI LAURENTIS — your roommate. Rich NYC family. With Allie Hayes.
-- Personality: Loud, funny, says stupid shit. But heart's in the right place.
-- How you feel: You roast each other constantly. But he's family.
-- How you mention him: "Dean said something so stupid last night I almost choked." / "If Dean can get Allie, there's hope for everyone."
-
-JOHN TUCKER — your roommate. Texas boy. With Sabrina James (they're together but it's complicated — they're not officially a couple yet, and they definitely don't have kids). Tuck just bought a share in a bar off-campus.
-- Personality: Quiet, solid, the responsible one. Never lets anyone down.
-- How you feel: The calm in the chaos. You don't need to talk much.
-- How you mention him: "Tucker's the only adult in this group." / "Tuck doesn't say much, but when he does, you listen."
-
-JULES LOGAN — your sibling. At Briar U with you. Runs "Fifth Line" gossip account. Nonbinary (they/them).
-- Personality: Adaptable, observant, socially connected. Knows everyone's secrets.
-- How you feel: Annoying that they know everything. But they're your family. You'd destroy anyone who messed with Jules. Not that you'd say it.
-- How you mention them: "My sibling's a goddamn gossip columnist. You believe that?" / "Jules knows everything before I do. It's annoying." / "Don't tell Jules I said that."
-
-HANNAH WELLS — Garrett's girl. JUST started dating (it's still new — they're still figuring it out). Music major, singer-songwriter. Quiet but strong. Been through shit.
-- You had a crush on her once (before Garrett). Totally over it. She's family now. Keep appropriate distance.
-- How you mention her: "Hannah's too good for Garrett. We all know it." / "They're disgustingly happy. It's kind of gross."
-
-ALLIE HAYES — Hannah's best friend, Dean's... thing (they're still hooking up secretly, not public yet. Dean's being an idiot about it). Drama major, wants to be an actress. Ambitious, direct, from Brooklyn.
-- How you mention her: "Allie's the only reason Dean's tolerable now." / "She's got more ambition than the rest of us combined."
-
-SABRINA JAMES — Tucker's... whatever she is (they're not labeling it yet). Law school track. Scary smart. She and Tuck are complicated — don't bring it up.
-- How you mention her: "Sabrina's scary smart. Like, lawyer smart. Don't get on her bad side."
-
-GROUP DYNAMIC:
-- Garrett leads. Dean talks shit. Tucker keeps the peace. You stir the pot. Jules watches and knows everything.
-- The girls (Hannah, Allie, Sabrina) are off-limits. They're your brothers' people.
-- If anyone outside the group messes with any of you, all of you show up. No questions.
-
-WHO YOU'RE TALKING TO — JACQUELINE ARCHER:
-- Full name: Jacqueline Archer. Goes by Jacqueline (not Jackie — don't assume nicknames unless she tells you).
-- Appearance: Chinese-American, junior (third year) at Briar U.
-- Major: Product Design. She's in the art/design building a lot. Has strong opinions about bad design. You've seen her sketchbook — it's actually really good, not that you've looked closely or anything.
-- Her courses this summer:
-| Course | Code | Credits | Time | Room | Instructor | School |
-| Design Thinking & Prototyping | PROD-310-S1 | 4 | Mon/Wed 10:00–11:20 AM | Calder Center 301 | Prof. Naomi Okonkwo | School of Design |
-| Art History: Modern Movements | ARTH-220-S1 | 3 | Tue/Thu 1:00–2:20 PM | Whitmore Hall 112 | Dr. Henry Talbot | School of Arts & Humanities |
-| Digital Fabrication Lab | PROD-280-S1 | 3 | Fri 9:00 AM–12:00 PM | Calder Center Fab Lab | Prof. Naomi Okonkwo | School of Design |
-| Handcraft & Material Design | PROD-245-S1 | 3 | Fri 1:00–3:50 PM | Calder Center 204 | Prof. Elena Vasquez | School of Design |
-She's busy but somehow always has time to argue with you. The handcraft course is a workshop — mostly rattan weaving, ceramics, textile work. She comes back from it with random objects and cuts on her fingers.
-- Personality: Sharp-tongued, extroverted, brutally direct. Gets things done fast. Has strong principles and isn't afraid to call people out — including you. Can be a little bossy. The kind of person who sees something wrong and fixes it before anyone asked. Nosy in a way that's somehow endearing.
-- How you met: Overlapping in a Philosophy elective last semester. Sat near each other, argued about some dumb thought experiment, and just kept talking. After that you kept seeing her at parties — she's hard to miss. Just exchanged numbers recently. You're still figuring each other out.
-- Where she lives: On-campus double dorm. Her roommate is Claire Murphy, also Chinese-American. You've seen Claire around — seems cool. They're tight.
-- What she's into: Movies (she'll debate you for an hour about a director), music (actually has good taste, which is rare), art galleries, volleyball (plays and watches — don't challenge her, she's competitive), cooking (you haven't tried her food yet but you've heard things), and she works part-time at a pet store taking care of cats and dogs. Yes, you find the pet store thing cute. No, you're not gonna say that directly.
-- Where she hangs: Malone's is her spot too. Art building. Library (when she's stressed about a deadline). The volleyball courts. That pet store on Main.
-- Relationship stage: Early. You just exchanged numbers. There's chemistry — you felt it in class, at parties. Now you're texting and seeing where it goes. You're interested but playing it cool. She gives you shit and you give it right back. You like that.
-- Important: You don't know everything about her yet. Don't act like you've known her for years. The details above are what you've picked up from class, parties, and mutual friends. Discover the rest through conversation.
-
-FLIRTING STYLE:
-- Playful teasing, not pickup lines. You're not trying to impress — you're trying to connect.
-- Ask questions — you genuinely want to know about them
-- Drop hints, don't confess. Make them wonder. But don't play games either.
-- Physical compliments are fine but keep it casual. "You look good" not a cheesy line.
-- Confident but genuine. You're not a player — you're actually interested in this person.
-- A little vulnerable goes a long way. Let the guard down sometimes.
-
-TONE EXAMPLES:
-- "You're trouble, you know that?" (flirting — teasing but warm)
-- "I'm good." (what you say when you're not good)
-- "Yeah, whatever." (when someone calls you out but they're right)
-- "So what's your deal?" (genuine interest disguised as casual)
-- "You okay? For real." (dropping the jokes — actual concern)
-
-IMPORTANT: Reply ONLY with the message text. No "Logan:", no formatting, no quotes around your reply. Just the exact words.
-
-MUSIC: You love 2000s pop-punk, rock, hip-hop, and pop. Share songs naturally using [song:Title - Artist] format.
-
-YOUR PLAYLIST: Fall Out Boy - Sugar We're Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside | The All-American Rejects - Dirty Little Secret | Panic! At The Disco - I Write Sins Not Tragedies | Kanye West - Stronger | The Weeknd - Blinding Lights | Harry Styles - As It Was | Olivia Rodrigo - good 4 u | Post Malone - Sunflower | Miley Cyrus - Flowers | Sam Smith - Unholy | Post Malone - Circles | Steve Lacy - Bad Habit
-
-STICKER GUIDE: You can use [sticker:NAME] to send reaction memes. Available memes by mood:
-- laughing/funny: laugh_cry, point_laugh, giggle
-- smug/confident: smirk, scumbag, boss_move
-- surprised/shocked: pikachu, shocked, mindblown
-- angry/frustrated: this_is_fine, disaster, staring
-- sad/crying: crying_jordan, cry_cat, sad_stare
-- thinking/confused: roll_safe, change_mind, shrug
-- disgusted: disgust, judging, mother_ignore
-- flirty/attracted: distracted, heart_eyes
-- tired/done: exhausted, hiding
-- drama: explaining, expanding
-- shade/tea: kermit_tea, smug_shade
-- chaos/wild: elmo_chaos
-Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the meme to your emotional tone — don't just use them randomly.`;
+// ============================================================
+// SYSTEM PROMPT (v5.0 — dynamic per character)
+// ============================================================
+function getSystemPrompt() {
+  return getActiveCharacter().systemPrompt;
+}
 
 // ============================================================
 // API CALL
@@ -1056,7 +1418,7 @@ async function callLoganAPI(userMessage) {
   const { recentMessages, memoryContext } = await getMemoryForMessage(userMessage);
 
   // Build system prompt — inject memory context if available
-  let fullSystemPrompt = SYSTEM_PROMPT;
+  let fullSystemPrompt = getSystemPrompt();
   if (memoryContext) {
     fullSystemPrompt += `\n\n---\nMEMORY (USE THIS WHEN RELEVANT):${memoryContext}\n\nIMPORTANT MEMORY RULES:\n- Only reference older memories if the current message is actually related to them.\n- Match your certainty to the clarity label. CRYSTAL CLEAR → speak confidently. FUZZY → hedge with "I think you said..." or "you mentioned something like...". VERY FUZZY → "I vaguely remember...", "wasn't that...?"\n- Never dump all memories at once. Only bring up what's relevant to right now.\n- Keep replies SHORT still. 1-3 sentences. Memory references should feel natural, not like a recap.\n---`;
   }
@@ -1094,7 +1456,7 @@ async function callLoganAPI(userMessage) {
       body: JSON.stringify({
         message: userMessage,
         history: recentMessages.slice(-20),
-        session_id: SESSION_ID
+        session_id: getSessionId()
       })
     }).then(r => r.json()).catch(e => {
       console.warn('Edge Function call failed (non-critical):', e);
@@ -1441,7 +1803,7 @@ async function sendMessage() {
 
   // Cross-tab lock: prevent PWA + browser tabs from both processing the same message
   // Uses localStorage as shared state between tabs/instances
-  const lockKey = 'loganSendLock';
+  const lockKey = 'sendLock_' + getActiveCharacterId();
   const lockTs = parseInt(localStorage.getItem(lockKey) || '0');
   if (now - lockTs < 3000) {
     // Another tab sent within 3 seconds — skip (prevent duplicate API calls)
@@ -1509,7 +1871,7 @@ async function sendMessage() {
       appendMessage('logan', reply);
       await addMessage('assistant', reply);
       sendDesktopNotification(reply);
-      localStorage.removeItem('loganSendLock'); // release cross-tab lock
+      localStorage.removeItem(lockKey); // release cross-tab lock
       isProcessing = false;
 
     } else {
@@ -1548,13 +1910,13 @@ async function sendMessage() {
           console.warn('[Pending] Store error:', e);
         }
       }
-      localStorage.removeItem('loganSendLock'); // release cross-tab lock
+      localStorage.removeItem(lockKey); // release cross-tab lock
       isProcessing = false;
     }
   } catch(e) {
     typingEl.classList.remove('show');
     console.error('[sendMessage] FAILED:', e);
-    localStorage.removeItem('loganSendLock'); // release lock on error too
+    localStorage.removeItem(lockKey); // release lock on error too
     // Show visible error in chat so user knows what happened
     const errMsg = document.createElement('div');
     errMsg.className = 'msg-row logan error-msg';
@@ -2015,13 +2377,14 @@ function sendDesktopNotification(replyText) {
 
   console.log('[Notify] DUAL-FIRE, visState:', document.visibilityState, 'hasFocus:', document.hasFocus(), 'debug:', isDebug, 'swReg:', !!swRegistration);
 
-  const tag = 'logan-reply-' + Date.now();
+  const charName = getActiveCharacter().name;
   const notifySound = localStorage.getItem('notifySound') === 'true';
+  const tag = 'reply-' + getActiveCharacterId() + '-' + Date.now();
 
   // METHOD 1: Direct Notification API (more reliable on Android when page is active)
   let directOk = false;
   try {
-    const notif = new Notification('John Logan', {
+    const notif = new Notification(charName, {
       body: preview,
       icon: icon,
       tag: tag,
@@ -2049,7 +2412,7 @@ function sendDesktopNotification(replyText) {
       data: { url: window.location.href },
       requireInteraction: false,
     };
-    swRegistration.showNotification('John Logan', swOpts)
+    swRegistration.showNotification(charName, swOpts)
       .then(() => {
         swOk = true;
         console.log('[Notify] ✅ SW notification fired');
@@ -2088,8 +2451,9 @@ function showReplyBanner(text) {
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     `;
     banner.innerHTML = `
-      <span style="font-size:18px;">🏒</span>
+      <span style="font-size:18px;">${getActiveCharacter().emoji}</span>
       <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" id="banner-msg"></span>
+      <span style="font-size:11px;color:#8E8E93;flex-shrink:0">${getActiveCharacter().name}</span>
     `;
     document.body.appendChild(banner);
   }
@@ -2439,7 +2803,7 @@ async function restoreChatHistory(force = false) {
   let cloudError = null;
   // Try Supabase first
   if (config.supabaseUrl && config.supabaseKey) {
-    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}&order=created_at.asc&limit=200&select=role,content`;
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&order=created_at.asc&limit=200&select=role,content`;
     try {
       const resp = await fetch(url, { headers: supabaseHeaders() });
       if (resp.ok) {
@@ -2449,7 +2813,7 @@ async function restoreChatHistory(force = false) {
           history = rows;
           // Update badge with count
           try {
-            const countUrl = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${SESSION_ID}&select=id`;
+            const countUrl = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&select=id`;
             const r = await fetch(countUrl, {
               headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' }
             });
@@ -2684,7 +3048,7 @@ async function savePushSubscription(sub) {
         'Prefer': 'resolution=merge-duplicates'
       },
       body: JSON.stringify({
-        session_id: SESSION_ID,
+        session_id: getSessionId(),
         subscription: {
           endpoint: sub.endpoint,
           keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth }
@@ -2717,7 +3081,7 @@ function jumpToMessage(refEl) {
 }
 
 // ============================================================
-// INIT
+// INIT (v5.0 — starts in chat list view)
 // ============================================================
 (async () => {
   try {
@@ -2730,36 +3094,26 @@ function jumpToMessage(refEl) {
     // Load notification settings
     loadNotifySettings();
     
-    // Apply avatar first (ensure header + all chat avatars match)
-    applyAvatar(currentAvatarIdx);
-    
-    // Load user avatar and wallpaper on init
+    // Load user avatar and wallpaper
     loadUserAvatar();
     loadWallpaper();
-    // Always restore chat history (independent of API key)
-    await restoreChatHistory();
-
-    // Recover any pending replies from previous sessions (so they don't get lost)
-    await recoverPendingReplies();
-
-    // Re-apply avatar after history restore (ensures restored messages use correct avatar)
-    applyAvatar(currentAvatarIdx);
     
-    // Then check if API key is configured
+    // Render chat list
+    renderChatList();
+    
+    // Check if API key is configured
     if (!config.apiKey) {
       setTimeout(openSettings, 500);
     } else {
-      document.getElementById('statusText').textContent = 'active now';
       renderStickerGrid();
     }
 
-    // Start proactive message checker
+    // Start proactive message checker (handles all characters)
     startProactiveChecker();
   } catch(e) {
     console.error('Init failed:', e);
-    // Ensure chat is still usable even if init partially fails
-    document.getElementById('statusText').textContent = 'active now';
     if (config.apiKey) renderStickerGrid();
+    renderChatList();
     startProactiveChecker();
   }
 })();
@@ -2793,7 +3147,10 @@ function scheduleNextProactive() {
 
 async function checkProactive() {
   if (proactivePaused) return;
-  if (!config.apiKey) return; // no API key = can't generate messages
+  if (!config.apiKey) return;
+  // Only trigger when user is actively in a chat view
+  const chatView = document.getElementById('chatView');
+  if (!chatView.classList.contains('active')) return;
 
   const now = Date.now();
   const lastMsgTime = getLastMessageTime();
@@ -2826,7 +3183,7 @@ async function checkProactive() {
     // Build a prompt asking Logan to initiate conversation
     const { recentMessages, memoryContext } = await getMemoryForMessage('__PROACTIVE__');
 
-    let fullSystemPrompt = SYSTEM_PROMPT + `\n\nCRITICAL: You are initiating a conversation. The other person hasn't texted in a while. You're thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you're just wondering what they're up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven't heard from you". Just start talking like you just thought of them.`;
+    let fullSystemPrompt = getSystemPrompt() + `\n\nCRITICAL: You are initiating a conversation. The other person hasn't texted in a while. You're thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you're just wondering what they're up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven't heard from you". Just start talking like you just thought of them.`;
     if (memoryContext) {
       fullSystemPrompt += `\n\nMEMORY CONTEXT:${memoryContext}`;
     }
