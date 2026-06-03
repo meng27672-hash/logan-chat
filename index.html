@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.3.4">
+<meta name="version" content="v4.3.5">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1975,9 +1975,9 @@ window.addEventListener('appinstalled', () => {
 });
 
 // Send notification when Logan replies (desktop + PWA mobile)
-// v4.3.4: Remove setTimeout — fire immediately; add in-app banner fallback
-// The setTimeout was the root cause: mobile throttles background timers,
-// so delayed notification callbacks never fire after user switches away.
+// v4.3.5: Dual-fire BOTH SW + Direct notification simultaneously
+// Android Chrome bug: swRegistration.showNotification() resolves OK but
+// doesn't actually show. Trying both methods ensures at least one works.
 function sendDesktopNotification(replyText) {
   if (localStorage.getItem('notifyDesktop') !== 'true') {
     console.log('[Notify] Skipped — notifyDesktop is false');
@@ -2005,9 +2005,6 @@ function sendDesktopNotification(replyText) {
   const preview = replyText.length > 100 ? replyText.substring(0, 97) + '...' : replyText;
   const icon = '/logan-chat/icon-192.png';
 
-  // No setTimeout — fire immediately. On mobile, timers are killed/throttled
-  // when the app goes to background, which was the root cause of no notifications.
-
   const isDebug = localStorage.getItem('debugInstantReply') === '1';
 
   // Skip system notification only if user is actively looking at the page (non-debug)
@@ -2016,47 +2013,59 @@ function sendDesktopNotification(replyText) {
     return;
   }
 
-  console.log('[Notify] Firing IMMEDIATELY, visState:', document.visibilityState, 'hasFocus:', document.hasFocus(), 'debug:', isDebug, 'swReg:', !!swRegistration);
+  console.log('[Notify] DUAL-FIRE, visState:', document.visibilityState, 'hasFocus:', document.hasFocus(), 'debug:', isDebug, 'swReg:', !!swRegistration);
 
   const tag = 'logan-reply-' + Date.now();
-  const notifyOpts = {
-    body: preview,
-    icon: icon,
-    badge: '/logan-chat/icon-192.png',
-    tag: tag,
-    silent: localStorage.getItem('notifySound') !== 'true',
-    vibrate: [200, 100, 200],
-    data: { url: window.location.href },
-    requireInteraction: false,
-  };
+  const notifySound = localStorage.getItem('notifySound') === 'true';
 
-  // Attempt via Service Worker (reliable for PWA background notifications)
-  if (swRegistration && 'showNotification' in swRegistration) {
-    swRegistration.showNotification('John Logan', notifyOpts)
-      .then(() => {
-        console.log('[Notify] ✅ SW notification fired');
-      })
-      .catch(err => {
-        console.warn('[Notify] SW showNotification failed, trying direct:', err.message);
-        tryDirectNotification();
-      });
-  } else {
-    console.log('[Notify] No SW registration, trying direct notification');
-    tryDirectNotification();
+  // METHOD 1: Direct Notification API (more reliable on Android when page is active)
+  let directOk = false;
+  try {
+    const notif = new Notification('John Logan', {
+      body: preview,
+      icon: icon,
+      tag: tag,
+      silent: !notifySound,
+      vibrate: notifySound ? [200, 100, 200] : undefined,
+    });
+    notif.onclick = function() { window.focus(); notif.close(); };
+    setTimeout(() => notif.close(), 10000);
+    directOk = true;
+    console.log('[Notify] ✅ Direct notification created');
+  } catch(e) {
+    console.warn('[Notify] Direct notification failed:', e.message);
   }
 
-  function tryDirectNotification() {
-    try {
-      const notif = new Notification('John Logan', {
-        body: preview, icon: icon, tag: tag,
-        silent: localStorage.getItem('notifySound') !== 'true',
+  // METHOD 2: Service Worker notification (for true background delivery)
+  let swOk = false;
+  if (swRegistration && 'showNotification' in swRegistration) {
+    const swOpts = {
+      body: preview,
+      icon: icon,
+      badge: '/logan-chat/icon-192.png',
+      tag: tag + '-sw',
+      silent: !notifySound,
+      vibrate: notifySound ? [200, 100, 200] : undefined,
+      data: { url: window.location.href },
+      requireInteraction: false,
+    };
+    swRegistration.showNotification('John Logan', swOpts)
+      .then(() => {
+        swOk = true;
+        console.log('[Notify] ✅ SW notification fired');
+        if (!directOk) console.log('[Notify] Only SW worked (direct failed)');
+      })
+      .catch(err => {
+        console.warn('[Notify] SW notification failed:', err.message);
+        if (!directOk) console.error('[Notify] ❌ BOTH methods failed');
       });
-      notif.onclick = function() { window.focus(); notif.close(); };
-      setTimeout(() => notif.close(), 8000);
-      console.log('[Notify] ✅ Direct notification fired');
-    } catch(e) {
-      console.error('[Notify] ❌ Direct notification also failed:', e.message);
-    }
+  } else {
+    console.log('[Notify] No SW registration (PWA not installed?), direct only');
+  }
+
+  // Haptic feedback as extra signal (vibrate if allowed)
+  if (navigator.vibrate && notifySound) {
+    try { navigator.vibrate([150, 80, 150]); } catch(e) {}
   }
 
   // ── In-app banner: guaranteed visual feedback, regardless of OS notification ──
