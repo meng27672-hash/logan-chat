@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.2.0">
+<meta name="version" content="v5.2.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -698,7 +698,7 @@ TONE EXAMPLES:
 IMPORTANT: Reply ONLY with the message text. No "Logan:", no formatting, no quotes. Just the exact words.
 
 SCHEDULE (use this to decide reply timing — NEVER mention schedule in replies):
-You're in Boston (ET). Sleep ~10PM–7:30AM weekdays, ~10PM–8AM weekends. 35% chance already asleep after 10PM. Summer classes: Tue/Thu 10:00–11:20AM, Mon/Wed 2:30–3:50PM. Practice 3–6PM (offseason varies). Quickest replies during lunch 12–1PM and evenings 6–10PM.
+You're in Boston (ET). Sleep ~12:30AM–8AM weekdays, ~12:30AM–9AM weekends. 35% chance already asleep after midnight. Summer classes: Tue/Thu 10:00–11:20AM, Mon/Wed 2:30–3:50PM. Practice 3–6PM (offseason varies). Quickest replies during lunch 12–1PM and evenings 6PM–midnight.
 
 YOUR PLAYLIST: Fall Out Boy - Sugar We're Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside | The All-American Rejects - Dirty Little Secret | Panic! At The Disco - I Write Sins Not Tragedies | Kanye West - Stronger | The Weeknd - Blinding Lights | Harry Styles - As It Was | Olivia Rodrigo - good 4 u | Post Malone - Sunflower | Miley Cyrus - Flowers | Sam Smith - Unholy | Post Malone - Circles | Steve Lacy - Bad Habit
 
@@ -718,7 +718,7 @@ STICKER GUIDE: You can use [sticker:NAME] to send reaction memes. Available meme
 Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the meme to your emotional tone.`,
     schedule: {
       timezone: 'America/New_York',
-      sleepStart: 22, sleepEnd: 7, sleepEndWeekend: 8,
+      sleepStart: 0.5, sleepEnd: 8, sleepEndWeekend: 9,
       sleepRoll: 0.35,
       classBlocks: [
         { days: [2,4], start: 10, end: 11.33 },
@@ -1777,7 +1777,15 @@ function getCharacterState(cid) {
 
   // Late-night window — ROLL whether they're still up or already asleep
   const sleepStart = sched.sleepStart || 22;
-  if (hr >= sleepStart) {
+  let inSleepWindow;
+  if (sleepStart >= wakeHr) {
+    // Normal schedule (e.g. sleepStart=22, wakeHr=8): roll from sleepStart onward
+    inSleepWindow = hr >= sleepStart;
+  } else {
+    // Midnight-crossing schedule (e.g. sleepStart=0.5, wakeHr=8): roll in evening hours
+    inSleepWindow = hr >= 20 || hr < sleepStart;
+  }
+  if (inSleepWindow) {
     const rollSleep = Math.random() < (sched.sleepRoll || 0.35);
     if (rollSleep) {
       const tomorrow = new Date();
@@ -1849,7 +1857,8 @@ function getCharacterDelay(cid) {
     if (localHr >= 12 && localHr < 13) return { min: 1, max: 5, label: 'lunch', uxDelay: true };
     if (sched.practice && localHr >= sched.practice.start && localHr < sched.practice.end)
       return { min: 10, max: 45, label: 'at practice', uxDelay: true };
-    if (localHr >= 18 && localHr < (sched.sleepStart || 22))
+    const freeEnd = (sched.sleepStart >= 12 || !sched.sleepStart) ? (sched.sleepStart || 22) : 24;
+    if (localHr >= 18 && localHr < freeEnd)
       return { min: 0.05, max: 1, label: 'free', uxDelay: true };
     return { min: 0.5, max: 3, label: 'night', uxDelay: true };
   }
