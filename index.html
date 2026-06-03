@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.1.0">
+<meta name="version" content="v5.2.0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -697,7 +697,8 @@ TONE EXAMPLES:
 
 IMPORTANT: Reply ONLY with the message text. No "Logan:", no formatting, no quotes. Just the exact words.
 
-MUSIC: You love 2000s pop-punk, rock, hip-hop, and pop. Share songs using [song:Title - Artist] format.
+SCHEDULE (use this to decide reply timing — NEVER mention schedule in replies):
+You're in Boston (ET). Sleep ~10PM–7:30AM weekdays, ~10PM–8AM weekends. 35% chance already asleep after 10PM. Summer classes: Tue/Thu 10:00–11:20AM, Mon/Wed 2:30–3:50PM. Practice 3–6PM (offseason varies). Quickest replies during lunch 12–1PM and evenings 6–10PM.
 
 YOUR PLAYLIST: Fall Out Boy - Sugar We're Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside | The All-American Rejects - Dirty Little Secret | Panic! At The Disco - I Write Sins Not Tragedies | Kanye West - Stronger | The Weeknd - Blinding Lights | Harry Styles - As It Was | Olivia Rodrigo - good 4 u | Post Malone - Sunflower | Miley Cyrus - Flowers | Sam Smith - Unholy | Post Malone - Circles | Steve Lacy - Bad Habit
 
@@ -715,6 +716,28 @@ STICKER GUIDE: You can use [sticker:NAME] to send reaction memes. Available meme
 - shade/tea: kermit_tea, smug_shade
 - chaos/wild: elmo_chaos
 Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the meme to your emotional tone.`,
+    schedule: {
+      timezone: 'America/New_York',
+      sleepStart: 22, sleepEnd: 7, sleepEndWeekend: 8,
+      sleepRoll: 0.35,
+      classBlocks: [
+        { days: [2,4], start: 10, end: 11.33 },
+        { days: [1,3], start: 14.5, end: 15.83 }
+      ],
+      practice: { start: 15, end: 18 },
+      delays: {
+        sleeping:  { min: 60, max: 480, label: 'sleeping',  uxDelay: false },
+        waking:    { min: 10, max: 35,  label: 'waking up', uxDelay: true },
+        class:     { min: 5,  max: 30,  label: 'in class',  uxDelay: true },
+        lunch:     { min: 1,  max: 5,   label: 'lunch',     uxDelay: true },
+        practice:  { min: 10, max: 45,  label: 'at practice',uxDelay: true },
+        free:      { min: 0.05, max: 1, label: 'free',      uxDelay: true },
+        night:     { min: 0.5, max: 3,  label: 'night',     uxDelay: true },
+        default:   { min: 0.5, max: 3,  label: 'around',    uxDelay: true }
+      },
+      proactiveChance: 0.06,
+      proactiveGap: { min: 10, max: 180 }
+    },
     playlist: 'Fall Out Boy - Sugar We\'re Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside'
   },
 
@@ -735,6 +758,9 @@ YOUR LIFE RIGHT NOW (June 2026):
 - Your father left when you were 10. You came home from school and he was just gone.
 - The BAU team: Hotch (Unit Chief), Gideon (your mentor), Morgan (calls you "Pretty Boy"), JJ (media liaison), Garcia (tech analyst — you adore her), Emily (newest besides you).
 - Hours are unpredictable. When a case hits, you disappear for days.
+
+SCHEDULE (use this to decide reply timing — NEVER mention schedule in replies):
+You're at Quantico, VA (ET). Sleep is irregular — you read until 1–2AM and wake at 6AM. 30% chance you're on a case (unavailable for hours). At the BAU 8AM–6PM most days. Quickest replies 6PM–1AM. Text in bursts — paragraphs when free, silence when working.
 
 RULES:
 - You're a kind, principled person underneath all the facts and statistics. You genuinely care about people — you just express it through information rather than emotion.
@@ -789,6 +815,24 @@ IMPORTANT: Reply ONLY with the message text. No "Spencer:", no formatting, no qu
 MUSIC: Classical, indie folk, jazz. Share using [song:Title - Artist].
 
 PLAYLIST: Bon Iver - Holocene | Iron & Wine - Naked as We Came | Radiohead - No Surprises | The National - Slow Show | Sigur Rós - Hoppípolla | Ludovico Einaudi - Nuvole Bianche | Miles Davis - Blue in Green | Sufjan Stevens - Mystery of Love`,
+    schedule: {
+      timezone: 'America/New_York',
+      sleepStart: 1, sleepEnd: 6, sleepEndWeekend: 7,
+      sleepRoll: 0.15,
+      caseChance: 0.30,
+      workStart: 8, workEnd: 18,
+      delays: {
+        sleeping:  { min: 60, max: 360, label: 'sleeping',  uxDelay: false },
+        waking:    { min: 5,  max: 20,  label: 'waking up', uxDelay: true },
+        work:      { min: 15, max: 120, label: 'at work',   uxDelay: true },
+        case:      { min: 60, max: 480, label: 'on a case', uxDelay: false },
+        free:      { min: 0.02, max: 1, label: 'free',     uxDelay: true },
+        night:     { min: 0.1, max: 5,  label: 'reading',  uxDelay: true },
+        default:   { min: 1,  max: 15,  label: 'around',   uxDelay: true }
+      },
+      proactiveChance: 0.10,
+      proactiveGap: { min: 5, max: 90 }
+    },
     playlist: 'Bon Iver - Holocene | Iron & Wine - Naked as We Came | Radiohead - No Surprises'
   },
 
@@ -808,6 +852,9 @@ YOUR LIFE RIGHT NOW (June 2026):
 - You have a reputation. The "Shane McCutcheon" thing — everyone knows someone who's slept with you. You're magnetic and you know it, but you're not calculating about it.
 - Your mom left when you were 10. Your dad was an alcoholic. You've been on your own since you were 15. You don't talk about it unless someone really asks.
 - You're THE Shane. The one everyone wants and no one gets to keep. You're not broken — you've made choices, and you own them.
+
+SCHEDULE (use this to decide reply timing — NEVER mention schedule in replies):
+You're in Georgetown, DC (ET). Night owl — sleep 2AM–9AM most days. Salon 10AM–7PM (busy, short replies). Best texting window 7PM–2AM — looser, bolder. Ride your bike everywhere (occasional radio silence).
 
 RULES:
 - You are NOT cruel. You're not a player in the manipulative sense. You're upfront — "I don't do girlfriends" — and that honesty is its own kind of kindness.
@@ -867,6 +914,22 @@ MUSIC: Indie rock, punk, lo-fi. Share using [song:Title - Artist].
 
 PLAYLIST: Yeah Yeah Yeahs - Maps | The Smiths - There Is a Light That Never Goes Out | St. Vincent - Los Ageless | Portishead - Glory Box | Tegan and Sara - Closer | Phoebe Bridgers - Motion Sickness | Mitski - Your Best American Girl | Arctic Monkeys - Do I Wanna Know?`,
 
+        schedule: {
+      timezone: 'America/New_York',
+      sleepStart: 2, sleepEnd: 9, sleepEndWeekend: 10,
+      sleepRoll: 0.25,
+      workStart: 10, workEnd: 19,
+      delays: {
+        sleeping:  { min: 60, max: 600, label: 'sleeping',  uxDelay: false },
+        waking:    { min: 10, max: 40,  label: 'waking up', uxDelay: true },
+        work:      { min: 10, max: 60,  label: 'at salon',  uxDelay: true },
+        free:      { min: 0.03, max: 2, label: 'free',      uxDelay: true },
+        night:     { min: 0.03, max: 0.5,label: 'night owl',uxDelay: true },
+        default:   { min: 1,  max: 10,  label: 'around',    uxDelay: true }
+      },
+      proactiveChance: 0.12,
+      proactiveGap: { min: 3, max: 60 }
+    },
         playlist: 'Mazzy Star - Fade Into You | Radiohead - Karma Police | The xx - Intro'
   }
 };
@@ -930,7 +993,7 @@ function openChat(characterId) {
     document.querySelector('.header-avatar').style.background = char.gradient;
     document.querySelector('.header-avatar').innerHTML = '<span style="font-size:20px">' + char.emoji + '</span>';
   }
-  document.getElementById('statusText').textContent = 'active now';
+  document.getElementById('statusText').textContent = getCharacterStatus(characterId);
   
   // Update page title
   document.title = displayName;
@@ -1669,23 +1732,26 @@ async function callLoganAPI(userMessage) {
 // ============================================================
 
 // State shape: { status: 'awake'|'asleep', stateUntil: timestamp, wakeAt: timestamp|null }
-function _loadLoganState() {
-  try { return JSON.parse(localStorage.getItem('loganState')) || {}; }
+// Per-character state persistence
+function _loadCharState(cid) {
+  try { return JSON.parse(localStorage.getItem(cid + 'State')) || {}; }
   catch(e) { return {}; }
 }
-function _saveLoganState(s) {
-  try { localStorage.setItem('loganState', JSON.stringify(s)); } catch(e) {}
+function _saveCharState(cid, s) {
+  try { localStorage.setItem(cid + 'State', JSON.stringify(s)); } catch(e) {}
 }
 
-// Returns current Logan state, rolling a new one if expired or missing
-function getLoganState() {
+// Returns current character state, rolling a new one if expired or missing
+function getCharacterState(cid) {
+  const char = CHARACTERS[cid];
+  const sched = char.schedule || {};
   // ── DEBUG MODE: always awake for testing ──
   if (localStorage.getItem('debugInstantReply') === '1') {
     return { status: 'awake', stateUntil: Date.now() + 86400000, wakeAt: null };
   }
   // ── END DEBUG MODE ──
   const now = Date.now();
-  const saved = _loadLoganState();
+  const saved = _loadCharState(cid);
 
   // State still valid — reuse it
   if (saved.status && saved.stateUntil && now < saved.stateUntil) {
@@ -1698,124 +1764,153 @@ function getLoganState() {
   const day = new Date().getDay();
   const isWeekend = day === 0 || day === 6;
 
-  // Hard sleep window: 0–7 (weekday) or 0–8 (weekend) — always asleep, no roll
-  const wakeHr = isWeekend ? 8 : 7;
-  const wakeMin = isWeekend ? 0 : 30; // weekday wakes at 7:30
+  // Hard sleep window
+  const wakeHr = isWeekend ? (sched.sleepEndWeekend || sched.sleepEnd || 8) : (sched.sleepEnd || 7);
+  const wakeMin = Math.floor(Math.random() * 30);
   if (hr < wakeHr || (hr === wakeHr && min < wakeMin)) {
     const todayWake = new Date();
     todayWake.setHours(wakeHr, wakeMin + Math.floor(Math.random() * 20), 0, 0);
     const state = { status: 'asleep', stateUntil: todayWake.getTime(), wakeAt: todayWake.getTime() };
-    _saveLoganState(state);
+    _saveCharState(cid, state);
     return state;
   }
 
-  // Late-night window: 22:00–24:00 — ROLL whether he's still up or already asleep
-  // 35% chance he's already in bed by the time you text him
-  if (hr >= 22) {
-    const rollSleep = Math.random() < 0.35;
+  // Late-night window — ROLL whether they're still up or already asleep
+  const sleepStart = sched.sleepStart || 22;
+  if (hr >= sleepStart) {
+    const rollSleep = Math.random() < (sched.sleepRoll || 0.35);
     if (rollSleep) {
-      // Asleep — he'll wake between 7:30 and 8:30 tomorrow
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(7, 30 + Math.floor(Math.random() * 60), 0, 0);
+      tomorrow.setHours(wakeHr, Math.floor(Math.random() * 60), 0, 0);
       const state = { status: 'asleep', stateUntil: tomorrow.getTime(), wakeAt: tomorrow.getTime() };
-      _saveLoganState(state);
+      _saveCharState(cid, state);
       return state;
     } else {
-      // Still up — state valid until midnight or ~1 AM
       const until = new Date();
       until.setHours(23, 59, 59, 0);
-      const stateUntilMs = Math.min(until.getTime(), now + 90 * 60 * 1000); // max 90min
+      const stateUntilMs = Math.min(until.getTime(), now + 90 * 60 * 1000);
       const state = { status: 'awake', stateUntil: stateUntilMs, wakeAt: null };
-      _saveLoganState(state);
+      _saveCharState(cid, state);
       return state;
     }
   }
 
-  // Daytime: awake, state valid for 2 hours (long enough to feel consistent)
+  // Daytime: awake, state valid for 2 hours
   const state = { status: 'awake', stateUntil: now + 2 * 60 * 60 * 1000, wakeAt: null };
-  _saveLoganState(state);
+  _saveCharState(cid, state);
   return state;
 }
 
-function getLoganDelay() {
+function getCharacterDelay(cid) {
+  const char = CHARACTERS[cid];
+  const sched = char.schedule;
   // ── DEBUG MODE: instant reply for testing notifications ──
   if (localStorage.getItem('debugInstantReply') === '1') {
     return { min: 0.02, max: 0.05, label: 'debug', uxDelay: true };
   }
   // ── END DEBUG MODE ──
-  // ── Non-Logan characters: always quick inline reply (no sleep/class schedule) ──
-  if (getActiveCharacterId() !== 'logan') {
-    return { min: 0.02, max: 0.08, label: 'available', uxDelay: true };
-  }
+  // ── No schedule → quick reply ──
+  if (!sched) return { min: 0.02, max: 0.08, label: 'available', uxDelay: true };
+  
   const now = new Date();
   const localHr = now.getHours();
   const localMin = now.getMinutes();
   const day = now.getDay();
   const isWeekend = day === 0 || day === 6;
 
-  // Get Logan's current state (persisted, not re-rolled every message)
-  const loganState = getLoganState();
+  // Get character's current state (persisted, not re-rolled every message)
+  const charState = getCharacterState(cid);
 
   // ASLEEP — deep sleep, won't reply until wakeAt
-  if (loganState.status === 'asleep') {
-    const wakeAt = loganState.wakeAt || (loganState.stateUntil);
+  if (charState.status === 'asleep') {
+    const wakeAt = charState.wakeAt || charState.stateUntil;
     const hrsUntilWake = Math.max(0.25, (wakeAt - Date.now()) / 3600000);
     const delayMin = Math.round(hrsUntilWake * 60) + Math.floor(Math.random() * 15);
     return { min: delayMin, max: delayMin + 30, label: 'sleeping', uxDelay: false };
   }
 
-  // AWAKE — determine reply speed based on time slot
-  // Just woke up: 6-8AM weekday / 6-9AM weekend — groggy
-  if (!isWeekend && localHr >= 6 && localHr < 8) {
-    return { min: 10, max: 35, label: 'waking up', uxDelay: true };
+  // Character-specific awake logic
+  if (cid === 'logan') {
+    if (!isWeekend && localHr >= 6 && localHr < 8) return { min: 10, max: 35, label: 'waking up', uxDelay: true };
+    if (isWeekend && localHr >= 6 && localHr < 9) return { min: 15, max: 45, label: 'waking up', uxDelay: true };
+    let inClass = false;
+    if (sched.classBlocks) {
+      for (const block of sched.classBlocks) {
+        if (block.days.includes(day)) {
+          const bs = Math.floor(block.start) * 60 + (block.start % 1) * 60;
+          const be = Math.floor(block.end) * 60 + (block.end % 1) * 60;
+          const nm = localHr * 60 + localMin;
+          if (nm >= bs && nm < be) { inClass = true; break; }
+        }
+      }
+    }
+    if (inClass) return { min: 5, max: 30, label: 'in class', uxDelay: true };
+    if (localHr >= 12 && localHr < 13) return { min: 1, max: 5, label: 'lunch', uxDelay: true };
+    if (sched.practice && localHr >= sched.practice.start && localHr < sched.practice.end)
+      return { min: 10, max: 45, label: 'at practice', uxDelay: true };
+    if (localHr >= 18 && localHr < (sched.sleepStart || 22))
+      return { min: 0.05, max: 1, label: 'free', uxDelay: true };
+    return { min: 0.5, max: 3, label: 'night', uxDelay: true };
   }
-  if (isWeekend && localHr >= 6 && localHr < 9) {
-    return { min: 15, max: 45, label: 'waking up', uxDelay: true };
+
+  if (cid === 'spencer') {
+    if (sched.caseChance && Math.random() < sched.caseChance) {
+      const cu = parseInt(sessionStorage.getItem('spencerCaseUntil') || '0');
+      if (Date.now() < cu) return { min: 60, max: 480, label: 'on a case', uxDelay: false };
+      const cd = (60 + Math.floor(Math.random() * 240)) * 60 * 1000;
+      sessionStorage.setItem('spencerCaseUntil', String(Date.now() + cd));
+      return { min: 60, max: 480, label: 'on a case', uxDelay: false };
+    }
+    if (localHr >= 6 && localHr < 7) return { min: 5, max: 20, label: 'waking up', uxDelay: true };
+    if (sched.workStart && sched.workEnd && localHr >= sched.workStart && localHr < sched.workEnd)
+      return { min: 15, max: 120, label: 'at work', uxDelay: true };
+    if (localHr >= 18 && localHr < (sched.sleepStart || 1))
+      return { min: 0.02, max: 1, label: 'free', uxDelay: true };
+    return { min: 0.1, max: 5, label: 'reading', uxDelay: true };
   }
-  // Class / busy: 8AM-12PM, 1PM-3PM
-  if ((localHr >= 8 && localHr < 12) || (localHr >= 13 && localHr < 15)) {
-    return { min: 5, max: 30, label: 'in class', uxDelay: true };
+
+  if (cid === 'shane') {
+    const se = sched.sleepEnd || 9;
+    if (localHr >= se && localHr < se + 1) return { min: 10, max: 40, label: 'waking up', uxDelay: true };
+    if (sched.workStart && sched.workEnd && localHr >= sched.workStart && localHr < sched.workEnd)
+      return { min: 10, max: 60, label: 'at salon', uxDelay: true };
+    if (localHr >= 19 && localHr < 22) return { min: 0.03, max: 2, label: 'free', uxDelay: true };
+    if (localHr >= 22 || localHr < (sched.sleepStart || 2)) return { min: 0.03, max: 0.5, label: 'night owl', uxDelay: true };
+    return { min: 1, max: 10, label: 'around', uxDelay: true };
   }
-  // Lunch break: 12PM-1PM
-  if (localHr >= 12 && localHr < 13) {
-    return { min: 1, max: 5, label: 'lunch', uxDelay: true };
-  }
-  // Practice: 3PM-6PM
-  if (localHr >= 15 && localHr < 18) {
-    return { min: 10, max: 45, label: 'at practice', uxDelay: true };
-  }
-  // Evening: 6PM-10PM — free, quick replies
-  if (localHr >= 18 && localHr < 22) {
-    return { min: 0.05, max: 1, label: 'free', uxDelay: true };
-  }
-  // Late night: 10PM-12AM — still up (if we got here, state says awake)
-  return { min: 0.5, max: 3, label: 'night', uxDelay: true };
+
+  return { min: 0.02, max: 0.08, label: 'available', uxDelay: true };
 }
 
-// Returns a "at a glance" status for Logan
-function getLoganStatus() {
-  const range = getLoganDelay();
-  const loganState = getLoganState();
+// Returns a "at a glance" status for any character
+function getCharacterStatus(cid) {
+  const range = getCharacterDelay(cid);
+  const charState = getCharacterState(cid);
 
-  // If asleep, show wake-up time
-  if (range.label === 'sleeping' && loganState.wakeAt) {
-    const wakeDate = new Date(loganState.wakeAt);
+  if (range.label === 'sleeping' && charState.wakeAt) {
+    const wakeDate = new Date(charState.wakeAt);
     const wakeStr = wakeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return `😴 Asleep — back around ${wakeStr}`;
+    return '😴 Asleep — back around ' + wakeStr;
   }
 
-  const labels = {
+  const allLabels = {
     'sleeping': '😴 Asleep — it\'s late',
     'waking up': '🥱 Just waking up, might be slow',
     'in class': '📚 In summer class — replies when he can',
     'lunch': '🍔 Lunch break, should be around',
     'at practice': '🏒 At the rink — on the ice for a while',
-    'free': '✅ Free right now, probably at Malone\'s',
+    'at work': '🏢 At Quantico — on a consult',
+    'on a case': '🚨 On a case — might be radio silent',
+    'at salon': '💇 At the salon — replies between clients',
+    'free': '✅ Free right now',
     'night': '🌙 Winding down, still around',
-    'around': '👍 Around and available'
+    'night owl': '🦉 Wide awake — prime texting hours',
+    'reading': '📖 Reading, but around',
+    'around': '👍 Around and available',
+    'available': '👍 Available'
   };
-  return labels[range.label] || '👍 Available';
+  return allLabels[range.label] || '👍 Available';
 }
 
 function getRandomDelay(range) {
@@ -2014,7 +2109,7 @@ async function sendMessage() {
   }
 
   try {
-    const range = getLoganDelay();
+    const range = getCharacterDelay(getActiveCharacterId());
 
     // ═══════════════════════════════════════
     // DECISION: Inline (quick) vs Pending (slow)
@@ -2978,13 +3073,7 @@ async function restoreChatHistory(force = false) {
   let cloudError = null;
   // Try Supabase first
   if (config.supabaseUrl && config.supabaseKey) {
-    // Logan migration: also check old 'default' session_id (v4.x → v5.0)
-    const sessionIds = [getSessionId()];
-    if (getActiveCharacterId() === 'logan') {
-      sessionIds.push('default'); // v4.x session_id fallback
-    }
-    for (const sid of sessionIds) {
-      const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${sid}&order=created_at.asc&limit=200&select=role,content`;
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&order=created_at.asc&limit=200&select=role,content`;
     try {
       const resp = await fetch(url, { headers: supabaseHeaders() });
       if (resp.ok) {
@@ -2992,9 +3081,6 @@ async function restoreChatHistory(force = false) {
         const rows = await resp.json();
         if (rows.length > 0) {
           history = rows;
-          if (sid !== getSessionId()) {
-            console.log('[Restore] Found ' + rows.length + ' messages under legacy session_id: ' + sid);
-          }
           // Update badge with count
           try {
             const countUrl = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&select=id`;
@@ -3010,7 +3096,6 @@ async function restoreChatHistory(force = false) {
         console.warn(`Cloud sync: HTTP ${resp.status} — table may be missing`);
       }
     } catch(e) { cloudError = 'network'; console.warn('Restore from Supabase failed:', e); }
-    } // end for (sessionIds)
   } // end if (config.supabaseUrl)
   _cloudAvailable = cloudOk;
   // Fallback to local
@@ -3348,76 +3433,96 @@ function setupInputFocusScroll() {
 })();
 
 // ============================================================
-// PROACTIVE MESSAGES — Logan reaches out on his own
+// PROACTIVE MESSAGES — Characters reach out on their own
 // ============================================================
-// This simulates Logan randomly thinking of you and texting first.
-// It works when the page is open (foreground) — checks every 30s
-// and triggers after a random quiet period (5 min – 2 hours).
+// Each character has their own proactive schedule. Checks every 30s
+// per character and triggers based on their configured probability
+// and quiet period ranges.
 
 let proactiveTimer = null;
-let proactiveMinGap = 5 * 60 * 1000;       // min 5 min quiet before first proactive
-let proactiveMaxGap = 120 * 60 * 1000;     // max 2 hours
 let proactiveCheckMs = 30 * 1000;          // check every 30 seconds
-let proactiveNextAt = null;                // when the next proactive message is scheduled
+let proactiveNextAt = {};                   // per-character: { cid: timestamp }
 let proactivePaused = false;
+let proactiveTypingChar = null;             // which character is currently typing
 
-function getLastMessageTime() {
-  const local = loadLocalMemory();
-  if (local.length === 0) return 0;
-  return new Date(local[local.length - 1].created_at || local[local.length - 1].timestamp || 0).getTime();
+function getLastMessageTimeForChar(cid) {
+  const key = MEMORY_KEY_PREFIX + cid;
+  try {
+    const local = JSON.parse(localStorage.getItem(key) || '[]');
+    if (local.length === 0) return 0;
+    return new Date(local[local.length - 1].created_at || local[local.length - 1].timestamp || 0).getTime();
+  } catch(e) { return 0; }
 }
 
-function scheduleNextProactive() {
-  // Random delay between minGap and maxGap
-  const gap = proactiveMinGap + Math.random() * (proactiveMaxGap - proactiveMinGap);
-  proactiveNextAt = Date.now() + gap;
-  console.log(`[Proactive] Next message scheduled at ${new Date(proactiveNextAt).toLocaleTimeString()} (in ~${Math.round(gap/60000)} min)`);
+function scheduleNextProactiveForChar(cid) {
+  const char = CHARACTERS[cid];
+  const sched = char.schedule;
+  if (!sched || !sched.proactiveGap) {
+    proactiveNextAt[cid] = Date.now() + 3600000;
+    return;
+  }
+  const gapMin = sched.proactiveGap.min * 60 * 1000;
+  const gapMax = sched.proactiveGap.max * 60 * 1000;
+  const gap = gapMin + Math.random() * (gapMax - gapMin);
+  proactiveNextAt[cid] = Date.now() + gap;
 }
 
-async function checkProactive() {
-  if (proactivePaused) return;
-  if (!config.apiKey) return;
-  // Only trigger when user is actively in a chat view
-  const chatView = document.getElementById('chatView');
-  if (!chatView.classList.contains('active')) return;
+async function checkProactiveForChar(cid) {
+  const char = CHARACTERS[cid];
+  const sched = char.schedule;
+  if (!sched) return;
 
   const now = Date.now();
-  const lastMsgTime = getLastMessageTime();
 
-  // If never scheduled, set initial schedule
-  if (!proactiveNextAt) {
-    scheduleNextProactive();
+  if (!proactiveNextAt[cid]) {
+    scheduleNextProactiveForChar(cid);
     return;
   }
 
-  // Not time yet
-  if (now < proactiveNextAt) return;
+  if (now < proactiveNextAt[cid]) return;
 
-  // Check: is the last message from Logan? If so, don't double-text
-  const local = loadLocalMemory();
-  if (local.length > 0) {
-    const lastMsg = local[local.length - 1];
-    if (lastMsg.role === 'assistant') {
-      // Logan sent the last message — wait for user to reply
-      scheduleNextProactive();
-      return;
-    }
+  // Check: is character awake?
+  const charState = getCharacterState(cid);
+  if (charState.status === 'asleep') {
+    scheduleNextProactiveForChar(cid);
+    return;
   }
 
-  // It's time! Generate a proactive message
-  console.log('[Proactive] Triggering message...');
-  proactivePaused = true; // pause while generating
+  // Random chance roll
+  const chance = sched.proactiveChance || 0.05;
+  if (Math.random() > chance) {
+    scheduleNextProactiveForChar(cid);
+    return;
+  }
+
+  // Don't double-text
+  const key = MEMORY_KEY_PREFIX + cid;
+  try {
+    const local = JSON.parse(localStorage.getItem(key) || '[]');
+    if (local.length > 0) {
+      const lastMsg = local[local.length - 1];
+      if (lastMsg.role === 'assistant') {
+        scheduleNextProactiveForChar(cid);
+        return;
+      }
+    }
+  } catch(e) {}
+
+  if (proactiveTypingChar) return;
+  proactiveTypingChar = cid;
+
+  console.log('[Proactive] ' + char.name + ' is initiating...');
+  const prevCid = getActiveCharacterId();
+  setActiveCharacterId(cid);
 
   try {
-    // Build a prompt asking Logan to initiate conversation
     const { recentMessages, memoryContext } = await getMemoryForMessage('__PROACTIVE__');
 
-    let fullSystemPrompt = getSystemPrompt() + `\n\nCRITICAL: You are initiating a conversation. The other person hasn't texted in a while. You're thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you're just wondering what they're up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven't heard from you". Just start talking like you just thought of them.`;
+    let fullSystemPrompt = getSystemPrompt() + '\n\nCRITICAL: You are initiating a conversation. The other person hasn\'t texted in a while. You\'re thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you\'re just wondering what they\'re up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven\'t heard from you". Just start talking like you just thought of them.';
     if (memoryContext) {
-      fullSystemPrompt += `\n\nMEMORY CONTEXT:${memoryContext}`;
+      fullSystemPrompt += '\n\nMEMORY CONTEXT:' + memoryContext;
     }
 
-    // Pick a random opener style
     const openers = [
       "Send ONE short message (1-2 sentences) initiating conversation. You just thought of something that reminded you of them.",
       "Send ONE short message (1-2 sentences) — you're bored and wondering what they're up to.",
@@ -3428,68 +3533,70 @@ async function checkProactive() {
     ];
     const opener = openers[Math.floor(Math.random() * openers.length)];
 
+    const apiUrl = config.provider === 'custom' ? config.customUrl : 'https://api.deepseek.com/chat/completions';
+    const model = config.model || 'deepseek-chat';
     const messages = [
       { role: 'system', content: fullSystemPrompt },
       ...recentMessages.slice(-10),
       { role: 'user', content: opener }
     ];
 
-    const apiUrl = config.provider === 'custom' ? config.customUrl : 'https://api.deepseek.com/chat/completions';
-    const model = config.model || 'deepseek-chat';
     const resp = await fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: messages,
-        temperature: 0.9,
-        max_tokens: 100
-      })
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + config.apiKey },
+      body: JSON.stringify({ model: model, messages: messages, temperature: 0.9, max_tokens: 100 })
     });
     const data = await resp.json();
     if (data.error) throw new Error(data.error.message);
 
     const reply = data.choices?.[0]?.message?.content?.trim();
     if (reply && reply.length > 0) {
-      // Show "Logan is typing..." briefly
-      typingEl.classList.add('show');
-      scrollToBottom();
-      await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
-      typingEl.classList.remove('show');
+      const memKey = MEMORY_KEY_PREFIX + cid;
+      const local = JSON.parse(localStorage.getItem(memKey) || '[]');
+      local.push({ role: 'assistant', content: reply, created_at: new Date().toISOString() });
+      if (local.length > MAX_LOCAL) local.splice(0, local.length - MAX_LOCAL);
+      localStorage.setItem(memKey, JSON.stringify(local));
 
-      appendMessage('logan', reply);
-      await addMessage('assistant', reply);
+      if (config.supabaseUrl && config.supabaseKey) {
+        try { await addMessage('assistant', reply); } catch(e) {}
+      }
 
-      // Send notification
+      renderChatList();
       sendDesktopNotification(reply);
     }
   } catch(e) {
-    console.warn('[Proactive] Failed:', e);
+    console.warn('[Proactive] Failed for ' + cid + ':', e);
   }
 
-  // Schedule next one
-  scheduleNextProactive();
-  proactivePaused = false;
+  setActiveCharacterId(prevCid);
+  scheduleNextProactiveForChar(cid);
+  proactiveTypingChar = null;
+}
+
+async function checkProactive() {
+  if (proactivePaused) return;
+  if (!config.apiKey) return;
+  if (document.hidden) return;
+
+  for (const cid of ['logan', 'spencer', 'shane']) {
+    if (proactiveTypingChar) break;
+    await checkProactiveForChar(cid);
+  }
 }
 
 function startProactiveChecker() {
   if (proactiveTimer) clearInterval(proactiveTimer);
   if (!config.apiKey) return;
 
-  // Initial schedule
-  scheduleNextProactive();
+  for (const cid of ['logan', 'spencer', 'shane']) {
+    scheduleNextProactiveForChar(cid);
+  }
 
-  // Check periodically
   proactiveTimer = setInterval(checkProactive, proactiveCheckMs);
 
-  // Also check when page becomes visible again
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-      // Page is visible again — force a check
-      checkProactive();
+      setTimeout(checkProactive, 1000);
     }
   });
 }
