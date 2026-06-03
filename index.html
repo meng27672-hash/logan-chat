@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.2.1">
+<meta name="version" content="v5.3.0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -698,7 +698,7 @@ TONE EXAMPLES:
 IMPORTANT: Reply ONLY with the message text. No "Logan:", no formatting, no quotes. Just the exact words.
 
 SCHEDULE (use this to decide reply timing — NEVER mention schedule in replies):
-You're in Boston (ET). Sleep ~12:30AM–8AM weekdays, ~12:30AM–9AM weekends. 35% chance already asleep after midnight. Summer classes: Tue/Thu 10:00–11:20AM, Mon/Wed 2:30–3:50PM. Practice 3–6PM (offseason varies). Quickest replies during lunch 12–1PM and evenings 6PM–midnight.
+You're in Boston (ET). Sleep 12:30AM–8AM weekdays, 12:30AM–9AM weekends. 35% chance already asleep after midnight. Morning routine (gym/breakfast) 8–9AM — slow replies. Summer classes: Tue/Thu 10:00–11:20AM, Mon/Wed 2:30–3:50PM. Hockey practice 3–6PM — barely check phone. Lunch 12–1PM fast replies. Evenings 6PM–midnight you're most responsive — winding down, social, phone in hand.
 
 YOUR PLAYLIST: Fall Out Boy - Sugar We're Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside | The All-American Rejects - Dirty Little Secret | Panic! At The Disco - I Write Sins Not Tragedies | Kanye West - Stronger | The Weeknd - Blinding Lights | Harry Styles - As It Was | Olivia Rodrigo - good 4 u | Post Malone - Sunflower | Miley Cyrus - Flowers | Sam Smith - Unholy | Post Malone - Circles | Steve Lacy - Bad Habit
 
@@ -727,10 +727,11 @@ Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the m
       practice: { start: 15, end: 18 },
       delays: {
         sleeping:  { min: 60, max: 480, label: 'sleeping',  uxDelay: false },
-        waking:    { min: 10, max: 35,  label: 'waking up', uxDelay: true },
+        waking:    { min: 10, max: 40,  label: 'waking up', uxDelay: true },
+        morning:   { min: 10, max: 30,  label: 'morning routine',uxDelay: true },
         class:     { min: 5,  max: 30,  label: 'in class',  uxDelay: true },
         lunch:     { min: 1,  max: 5,   label: 'lunch',     uxDelay: true },
-        practice:  { min: 10, max: 45,  label: 'at practice',uxDelay: true },
+        practice:  { min: 10, max: 60,  label: 'at practice',uxDelay: true },
         free:      { min: 0.05, max: 1, label: 'free',      uxDelay: true },
         night:     { min: 0.5, max: 3,  label: 'night',     uxDelay: true },
         default:   { min: 0.5, max: 3,  label: 'around',    uxDelay: true }
@@ -916,15 +917,15 @@ PLAYLIST: Yeah Yeah Yeahs - Maps | The Smiths - There Is a Light That Never Goes
 
         schedule: {
       timezone: 'America/New_York',
-      sleepStart: 2, sleepEnd: 9, sleepEndWeekend: 10,
+      sleepStart: 2, sleepEnd: 9.5, sleepEndWeekend: 11,
       sleepRoll: 0.25,
-      workStart: 10, workEnd: 19,
+      workStart: 10.5, workEnd: 19,
       delays: {
         sleeping:  { min: 60, max: 600, label: 'sleeping',  uxDelay: false },
         waking:    { min: 10, max: 40,  label: 'waking up', uxDelay: true },
-        work:      { min: 10, max: 60,  label: 'at salon',  uxDelay: true },
-        free:      { min: 0.03, max: 2, label: 'free',      uxDelay: true },
-        night:     { min: 0.03, max: 0.5,label: 'night owl',uxDelay: true },
+        work:      { min: 5,  max: 45,  label: 'at salon',  uxDelay: true },
+        free:      { min: 0.03, max: 1.5,label: 'free',      uxDelay: true },
+        night:     { min: 0.02, max: 0.3,label: 'night owl',uxDelay: true },
         default:   { min: 1,  max: 10,  label: 'around',    uxDelay: true }
       },
       proactiveChance: 0.12,
@@ -1840,8 +1841,11 @@ function getCharacterDelay(cid) {
 
   // Character-specific awake logic
   if (cid === 'logan') {
-    if (!isWeekend && localHr >= 6 && localHr < 8) return { min: 10, max: 35, label: 'waking up', uxDelay: true };
+    if (!isWeekend && localHr >= 6 && localHr < 8) return { min: 10, max: 40, label: 'waking up', uxDelay: true };
     if (isWeekend && localHr >= 6 && localHr < 9) return { min: 15, max: 45, label: 'waking up', uxDelay: true };
+    // Morning routine: gym, breakfast, getting ready (8-9AM weekdays, 9-10AM weekends)
+    if (!isWeekend && localHr >= 8 && localHr < 9) return { min: 10, max: 30, label: 'morning routine', uxDelay: true };
+    if (isWeekend && localHr >= 9 && localHr < 10) return { min: 15, max: 40, label: 'morning routine', uxDelay: true };
     let inClass = false;
     if (sched.classBlocks) {
       for (const block of sched.classBlocks) {
@@ -1880,12 +1884,14 @@ function getCharacterDelay(cid) {
   }
 
   if (cid === 'shane') {
-    const se = sched.sleepEnd || 9;
-    if (localHr >= se && localHr < se + 1) return { min: 10, max: 40, label: 'waking up', uxDelay: true };
+    const se = sched.sleepEnd || 9.5;
+    if (localHr >= se && localHr < se + 1.5) return { min: 10, max: 45, label: 'waking up', uxDelay: true };
     if (sched.workStart && sched.workEnd && localHr >= sched.workStart && localHr < sched.workEnd)
-      return { min: 10, max: 60, label: 'at salon', uxDelay: true };
-    if (localHr >= 19 && localHr < 22) return { min: 0.03, max: 2, label: 'free', uxDelay: true };
-    if (localHr >= 22 || localHr < (sched.sleepStart || 2)) return { min: 0.03, max: 0.5, label: 'night owl', uxDelay: true };
+      return { min: 5, max: 45, label: 'at salon', uxDelay: true };
+    // Evening wind-down (7PM-10PM)
+    if (localHr >= 19 && localHr < 22) return { min: 0.05, max: 1.5, label: 'free', uxDelay: true };
+    // Golden hours (10PM-2AM): fastest replies, Shane is most herself at night
+    if (localHr >= 22 || localHr < (sched.sleepStart || 2)) return { min: 0.02, max: 0.3, label: 'night owl', uxDelay: true };
     return { min: 1, max: 10, label: 'around', uxDelay: true };
   }
 
@@ -1911,10 +1917,11 @@ function getCharacterStatus(cid) {
     'at practice': '🏒 At the rink — on the ice for a while',
     'at work': '🏢 At Quantico — on a consult',
     'on a case': '🚨 On a case — might be radio silent',
-    'at salon': '💇 At the salon — replies between clients',
+    'at salon': '💇 At the salon — between clients',
     'free': '✅ Free right now',
     'night': '🌙 Winding down, still around',
-    'night owl': '🦉 Wide awake — prime texting hours',
+    'night owl': '🦉 Late night — fastest replies now',
+    'morning routine': '💪 Morning routine — might be slow',
     'reading': '📖 Reading, but around',
     'around': '👍 Around and available',
     'available': '👍 Available'
@@ -1934,6 +1941,75 @@ function getRandomDelay(range) {
 // PENDING REPLY POLLING
 // ============================================================
 let pendingPollInterval = null;
+// ── Local Pending Reply Queue (survives PWA reload) ──
+// When a reply is scheduled via setTimeout (quick path), we save the intent
+// to localStorage. On PWA reload, recoverLocalPendingReplies() picks it up
+// and delivers the reply even if the original setTimeout was killed.
+const PENDING_LOCAL_KEY = 'pendingLocalReply_';
+function saveLocalPendingReply(cid, data) {
+  try { localStorage.setItem(PENDING_LOCAL_KEY + cid, JSON.stringify(data)); } catch(e) {}
+}
+function clearLocalPendingReply(cid) {
+  try { localStorage.removeItem(PENDING_LOCAL_KEY + cid); } catch(e) {}
+}
+function getLocalPendingReply(cid) {
+  try {
+    const raw = localStorage.getItem(PENDING_LOCAL_KEY + cid);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+async function deliverPendingReply(pending) {
+  // 1) Mark the last user message as read
+  const allUserRows = document.querySelectorAll('.msg-row.user');
+  const lastRow = allUserRows[allUserRows.length - 1];
+  if (lastRow) {
+    const readEl = lastRow.querySelector('.read-status');
+    if (readEl) {
+      readEl.textContent = '✓✓';
+      readEl.classList.add('read');
+      readEl.dataset.read = 'read';
+    }
+  }
+  // 2) Typing indicator
+  typingEl.classList.add('show');
+  scrollToBottom();
+  await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
+  typingEl.classList.remove('show');
+  // 3) Call API and deliver
+  const cid = pending.cid;
+  const prevCid = getActiveCharacterId();
+  setActiveCharacterId(cid);
+  const reply = await callLoganAPI(pending.apiText);
+  appendMessage(cid, reply);
+  await addMessage('assistant', reply);
+  sendDesktopNotification(reply);
+  setActiveCharacterId(prevCid);
+  clearLocalPendingReply(cid);
+}
+async function recoverLocalPendingReplies(cid) {
+  const pending = getLocalPendingReply(cid);
+  if (!pending) return;
+  const now = Date.now();
+  if (now >= pending.scheduledAt) {
+    // Reply was due while app was closed — deliver now
+    console.log('[Recover] Delivering overdue reply for ' + cid);
+    clearLocalPendingReply(cid);
+    await deliverPendingReply(pending);
+  } else {
+    // Reply due in the future — re-arm the timer
+    const remaining = pending.scheduledAt - now;
+    console.log('[Recover] Re-arming reply for ' + cid + ' in ' + (remaining/1000).toFixed(0) + 's');
+    setTimeout(async () => {
+      const stillPending = getLocalPendingReply(cid);
+      if (stillPending && stillPending.apiText === pending.apiText) {
+        clearLocalPendingReply(cid);
+        await deliverPendingReply(stillPending);
+      }
+    }, remaining);
+  }
+}
+// ── End Local Pending ──
+
 let pendingReplyIds = []; // Track pending IDs for this session
 let processedPendingIds = new Set(JSON.parse(localStorage.getItem('processedPendingIds') || '[]')); // Persist across sessions
 let isPolling = false; // Prevent concurrent polling runs
@@ -2017,7 +2093,9 @@ async function recoverPendingReplies() {
   try {
     // First: seed processedPendingIds from Supabase (survives localStorage clear)
     try {
-      const doneUrl = `${config.supabaseUrl}/rest/v1/pending_replies?session_id=eq.default&status=eq.completed&select=id&limit=100`;
+      // Query ALL character session_ids (not just 'default')
+      const sidFilter = ['default_logan','default_spencer','default_shane'].map(s => 'session_id=eq.'+s).join('&or=');
+      const doneUrl = `${config.supabaseUrl}/rest/v1/pending_replies?or=(${encodeURIComponent(sidFilter)})&status=eq.completed&select=id&limit=100`;
       const doneResp = await fetch(doneUrl, { headers: supabaseHeaders() });
       if (doneResp.ok) {
         const doneRows = await doneResp.json();
@@ -2029,8 +2107,9 @@ async function recoverPendingReplies() {
       }
     } catch(e) { console.warn('[Recover] Failed to seed processed IDs:', e); }
 
-    // Second: recover still-pending replies
-    const url = `${config.supabaseUrl}/rest/v1/pending_replies?session_id=eq.default&status=eq.pending&select=id`;
+    // Second: recover still-pending replies (check all character session_ids)
+    const sidFilter2 = ['default_logan','default_spencer','default_shane'].map(s => 'session_id=eq.'+s).join('&or=');
+    const url = `${config.supabaseUrl}/rest/v1/pending_replies?or=(${encodeURIComponent(sidFilter2)})&status=eq.pending&select=id`;
     const resp = await fetch(url, { headers: supabaseHeaders() });
     if (!resp.ok) return;
     const rows = await resp.json();
@@ -2124,9 +2203,13 @@ async function sendMessage() {
     // DECISION: Inline (quick) vs Pending (slow)
     // ═══════════════════════════════════════
     if (range.uxDelay) {
-      // QUICK PATH: Logan is free — reply inline (current behavior)
+      // QUICK PATH: character is free — reply inline
       const delayMs = getRandomDelay(range);
-      console.log(`[Logan schedule: ${range.label}, inline delay: ${(delayMs/1000).toFixed(1)}s]`);
+      console.log(`[Schedule: ${range.label}, inline delay: ${(delayMs/1000).toFixed(1)}s]`);
+
+      // Save pending reply intent to localStorage (survives PWA reload)
+      const cid = getActiveCharacterId();
+      saveLocalPendingReply(cid, { cid, apiText, scheduledAt: Date.now() + delayMs });
 
       await new Promise(r => setTimeout(r, delayMs));
 
@@ -2145,9 +2228,11 @@ async function sendMessage() {
 
       // Call API and show reply
       const reply = await callLoganAPI(apiText);
-      appendMessage('logan', reply);
+      const who = getActiveCharacterId();
+      appendMessage(who, reply);
       await addMessage('assistant', reply);
       sendDesktopNotification(reply);
+      clearLocalPendingReply(who); // remove the pending entry we saved earlier
       localStorage.removeItem(lockKey); // release cross-tab lock
       isProcessing = false;
 
@@ -2162,7 +2247,7 @@ async function sendMessage() {
       if (config.supabaseUrl && config.supabaseKey) {
         try {
           const body = JSON.stringify({
-            session_id: 'default',
+            session_id: getSessionId(),
             user_message: apiText,
             scheduled_at: scheduledAt,
             status: 'pending'
