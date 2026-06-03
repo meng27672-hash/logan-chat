@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.0.2">
+<meta name="version" content="v5.1.0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -141,6 +141,9 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 .toggle-slider::before{content:'';position:absolute;height:22px;width:22px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:0.3s}
 .toggle-switch input:checked+.toggle-slider{background:#34C759}
 .toggle-switch input:checked+.toggle-slider::before{transform:translateX(22px)}
+/* Pulse hint for save button when there are changes */
+.pulse-hint{animation:pulseHint 1.5s ease-in-out infinite}
+@keyframes pulseHint{0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,0.4)}50%{box-shadow:0 0 0 6px rgba(124,58,237,0)}}
 
 /* Song card */
 .song-card{display:flex;align-items:center;gap:10px;background:#1C1C1E;border-radius:12px;padding:10px;margin:4px 0;cursor:pointer;transition:background 0.2s}
@@ -200,7 +203,7 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 /* ============================================================
    CHAT LIST VIEW (v5.0 — multi-character inbox)
    ============================================================ */
-.chat-list-view{display:none;flex-direction:column;height:100vh;height:100dvh;background:#000}
+.chat-list-view{display:none;flex-direction:column;height:100vh;height:100dvh;height:calc(var(--vvh, 100dvh));background:#000}
 .chat-list-view.active{display:flex}
 .chat-list-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:#000;border-bottom:0.5px solid #1C1C1E;flex-shrink:0}
 .chat-list-header h1{font-size:28px;font-weight:700;color:#fff;letter-spacing:-0.5px}
@@ -223,7 +226,7 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 .chat-list-badge{min-width:20px;height:20px;border-radius:10px;background:#FF3B30;color:#fff;font-size:11px;font-weight:600;display:none;align-items:center;justify-content:center;padding:0 5px}
 .chat-list-badge.show{display:flex}
 /* Chat view wrapper */
-.chat-view{display:none;flex-direction:column;height:100vh;height:100dvh;background:#000}
+.chat-view{display:none;flex-direction:column;height:100vh;height:100dvh;height:calc(var(--vvh, 100dvh));background:#000}
 .chat-view.active{display:flex}
 .chat-view .back-btn{cursor:pointer}
 
@@ -359,6 +362,14 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
           </div>
           <svg viewBox="0 0 24 24" width="16" height="16"><polyline points="9 4 17 12 9 20" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round"/></svg>
         </div>
+        <div class="settings-item" onclick="openSubPanel('nicknames')">
+          <div class="settings-item-icon" style="background:#FF9500">✏️</div>
+          <div class="settings-item-text">
+            <div class="settings-item-label">Nicknames</div>
+            <div class="settings-item-desc">Set display names for your contacts</div>
+          </div>
+          <svg viewBox="0 0 24 24" width="16" height="16"><polyline points="9 4 17 12 9 20" fill="none" stroke="#8E8E93" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
       </div>
       <div class="settings-footer">
         <button class="settings-item" style="width:100%;justify-content:center;padding:12px;border-radius:12px;background:#1C1C1E;color:#A855F7;border:none;cursor:pointer;font-size:14px;font-weight:600;margin-bottom:8px" onclick="syncFromCloud()">☁️ Sync Messages from Cloud</button>
@@ -469,6 +480,18 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
       </div>
     </div>
 
+    <!-- Sub Panel: Nicknames -->
+    <div class="settings-sub" id="subPanelNicknames">
+      <div class="settings-header">
+        <button class="settings-back" onclick="backToMenu()"><svg viewBox="0 0 24 24"><polyline points="15 4 7 12 15 20"/></svg></button>
+        <span class="settings-title">Nicknames</span>
+        <span></span>
+      </div>
+      <div class="settings-sub-content" id="nicknameContent">
+        <!-- Dynamically populated by renderNicknamePanel() -->
+      </div>
+    </div>
+
     <!-- Sub Panel: AI Config -->
     <div class="settings-sub" id="subPanelAi">
       <div class="settings-header">
@@ -535,13 +558,33 @@ const MAX_CONTEXT = 30;
 (function migrateOldKeys() {
   const oldLoganKey = 'logan_chat_memory';
   const newLoganKey = 'chat_history_logan';
-  if (localStorage.getItem(oldLoganKey) && !localStorage.getItem(newLoganKey)) {
-    try {
-      const data = localStorage.getItem(oldLoganKey);
-      localStorage.setItem(newLoganKey, data);
-      console.log('[Migration] Copied logan_chat_memory → chat_history_logan');
-    } catch(e) { console.warn('[Migration] Failed:', e); }
-  }
+  try {
+    const oldData = localStorage.getItem(oldLoganKey);
+    const newData = localStorage.getItem(newLoganKey);
+    if (oldData) {
+      const oldParsed = JSON.parse(oldData);
+      const newParsed = newData ? JSON.parse(newData) : [];
+      // Migrate if: new is empty, OR old has significantly more messages
+      if (oldParsed.length > 0 && newParsed.length === 0) {
+        localStorage.setItem(newLoganKey, oldData);
+        localStorage.setItem('_migrated_from_old_key', 'true');
+        console.log('[Migration] Copied logan_chat_memory (' + oldParsed.length + ' msgs) → chat_history_logan');
+      } else if (oldParsed.length > newParsed.length) {
+        // Merge: take all old messages, add any newer ones from new
+        const merged = [...oldParsed];
+        // Only add messages from 'new' that are newer than the last old message
+        const lastOldTs = newParsed.length > 0 ? (newParsed[newParsed.length - 1]?.timestamp || 0) : 0;
+        for (const msg of newParsed) {
+          if (msg.timestamp > lastOldTs && !oldParsed.some(o => o.content === msg.content && o.role === msg.role)) {
+            merged.push(msg);
+          }
+        }
+        localStorage.setItem(newLoganKey, JSON.stringify(merged));
+        localStorage.setItem('_migrated_from_old_key', 'true');
+        console.log('[Migration] Merged logan_chat_memory (' + oldParsed.length + ' + ' + (merged.length - oldParsed.length) + ' new) → chat_history_logan');
+      }
+    }
+  } catch(e) { console.warn('[Migration] Failed:', e); }
   // Also migrate old logan send lock
   const oldLock = localStorage.getItem('sendLock_logan');
   const newLock = localStorage.getItem('loganSendLock');
@@ -841,6 +884,18 @@ function getCharAvatarSrc() {
   return char.avatar || '';
 }
 
+// Nickname system — per-character display names stored in localStorage
+function getNickname(characterId) {
+  return localStorage.getItem('nickname_' + characterId) || '';
+}
+function setNickname(characterId, name) {
+  if (name.trim()) {
+    localStorage.setItem('nickname_' + characterId, name.trim());
+  } else {
+    localStorage.removeItem('nickname_' + characterId);
+  }
+}
+
 
 // ============================================================
 // VIEW NAVIGATION (v5.0)
@@ -859,8 +914,13 @@ function openChat(characterId) {
   const chatView = document.getElementById('chatView');
   const listView = document.getElementById('chatListView');
   
-  // Update header
+  // Update header — use nickname if set
+  const nickname = getNickname(characterId);
+  const displayName = nickname || char.name;
   document.querySelector('.header-name').innerHTML = char.username + ' <span class="verified">✓</span>';
+  if (nickname) {
+    document.querySelector('.header-name').innerHTML = nickname + ' <span style="font-size:12px;color:#8E8E93;font-weight:400">@' + char.username + '</span> <span class="verified">✓</span>';
+  }
   // Set header avatar — show image for all characters
   const avatarSrc = getCharAvatarSrc();
   if (avatarSrc) {
@@ -873,25 +933,14 @@ function openChat(characterId) {
   document.getElementById('statusText').textContent = 'active now';
   
   // Update page title
-  document.title = char.name;
-  document.querySelector('meta[name="apple-mobile-web-app-title"]').content = char.name;
+  document.title = displayName;
+  document.querySelector('meta[name="apple-mobile-web-app-title"]').content = displayName;
   
-  // Clear existing messages and restore this character's history
+  // Clear messages area — just the divider, restoreChatHistory handles the rest
   const messagesEl = document.getElementById('messages');
   messagesEl.innerHTML = '<div class="ts-divider" id="todayDivider"></div>';
   
-  // Show character-specific welcome
-  const welcomeMsg = document.createElement('div');
-  welcomeMsg.className = 'msg-row logan';
-  welcomeMsg.id = 'welcomeMsg';
-  const welcomeAvatarSrc = getCharAvatarSrc();
-  const welcomeAvatarHtml = welcomeAvatarSrc
-    ? '<img src="' + welcomeAvatarSrc + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover">'
-    : char.emoji;
-  welcomeMsg.innerHTML = '<div class="msg-bubble-wrap"><div class="avatar-small">' + welcomeAvatarHtml + '</div><div class="msg-bubble">' + getWelcomeMessage(characterId) + '</div></div><div class="msg-time">now</div>';
-  messagesEl.appendChild(welcomeMsg);
-  
-  // Switch views
+  // Switch views immediately (smooth transition)
   listView.classList.remove('active');
   chatView.classList.add('active');
   
@@ -902,13 +951,16 @@ function openChat(characterId) {
   document.getElementById('msgInput').value = '';
   toggleSendBtn();
   
-  // Restore this character's history
-  restoreChatHistory();
+  // Restore this character's history (will show welcome if no history)
+  restoreChatHistory(true);
   
   // Apply chat bubble colors
   applyCharacterColors(characterId);
   
-  console.log('[Nav] Opened chat:', char.name);
+  // Scroll to bottom after short delay (let render finish)
+  setTimeout(scrollToBottom, 50);
+  
+  console.log('[Nav] Opened chat:', displayName);
 }
 
 function getWelcomeMessage(characterId) {
@@ -951,6 +1003,11 @@ function renderChatList() {
     const unread = getUnreadCount(id);
     const timeStr = lastMsg ? formatChatListTime(lastMsg.timestamp) : '';
     const preview = lastMsg ? (lastMsg.role === 'user' ? 'You: ' : '') + lastMsg.content.substring(0, 50) : '';
+    const nickname = getNickname(id);
+    const displayName = nickname || char.name;
+    const nameHtml = nickname
+      ? nickname + ' <span style="font-size:11px;color:#8E8E93;font-weight:400">@' + char.username + '</span>'
+      : char.name;
     
     const avatarContent = (id === 'logan' && typeof AVATARS !== 'undefined')
       ? '<img src="' + AVATARS[currentAvatarIdx] + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover">'
@@ -963,7 +1020,7 @@ function renderChatList() {
         ${avatarContent}
       </div>
       <div class="chat-list-info">
-        <div class="chat-list-name">${char.name}</div>
+        <div class="chat-list-name">${nameHtml}</div>
         <div class="chat-list-preview">${preview || 'Start a conversation...'}</div>
       </div>
       <div class="chat-list-meta">
@@ -1301,6 +1358,76 @@ function updateMemoryBadge(count, isCloud) {
     badge.style.color = '#FFB340';
   }
 }
+
+// ============================================================
+// NICKNAMES PANEL
+// ============================================================
+function renderNicknamePanel() {
+  const container = document.getElementById('nicknameContent');
+  const charIds = ['logan', 'spencer', 'shane'];
+  container.innerHTML = charIds.map(id => {
+    const char = CHARACTERS[id];
+    const saved = getNickname(id);
+    return `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:28px">${char.emoji}</span>
+        <span style="font-size:15px;font-weight:600;color:#fff">${char.name}</span>
+        <span style="font-size:12px;color:#8E8E93">@${char.username}</span>
+      </div>
+      <input type="text" id="nickInput_${id}" class="search-input" placeholder="Set a nickname..." value="${saved}" style="margin-bottom:4px"
+        oninput="document.getElementById('nickSaveBtn').classList.add('pulse-hint')">
+    </div>`;
+  }).join('') + `<button class="btn-save" id="nickSaveBtn" onclick="saveAllNicknames()">Save Nicknames</button>
+    <div class="status-msg" id="nickStatusMsg" style="margin-top:4px"></div>`;
+}
+
+function saveAllNicknames() {
+  const charIds = ['logan', 'spencer', 'shane'];
+  let changed = false;
+  for (const id of charIds) {
+    const input = document.getElementById('nickInput_' + id);
+    if (!input) continue;
+    const val = input.value.trim();
+    const old = getNickname(id);
+    if (val !== old) {
+      setNickname(id, val);
+      changed = true;
+    }
+  }
+  const msgEl = document.getElementById('nickStatusMsg');
+  if (changed) {
+    msgEl.textContent = 'Nicknames saved!';
+    msgEl.className = 'status-msg ok';
+    renderChatList(); // refresh chat list
+    // Also refresh current chat header if in a chat
+    if (document.getElementById('chatView').classList.contains('active')) {
+      const char = getActiveCharacter();
+      const nickname = getNickname(getActiveCharacterId());
+      if (nickname) {
+        document.querySelector('.header-name').innerHTML = nickname + ' <span style="font-size:12px;color:#8E8E93;font-weight:400">@' + char.username + '</span> <span class="verified">✓</span>';
+        document.title = nickname;
+        document.querySelector('meta[name="apple-mobile-web-app-title"]').content = nickname;
+      } else {
+        document.querySelector('.header-name').innerHTML = char.username + ' <span class="verified">✓</span>';
+        document.title = char.name;
+        document.querySelector('meta[name="apple-mobile-web-app-title"]').content = char.name;
+      }
+    }
+  } else {
+    msgEl.textContent = 'No changes.';
+    msgEl.className = 'status-msg';
+  }
+  document.getElementById('nickSaveBtn').classList.remove('pulse-hint');
+}
+
+// Hook into openSubPanel to load nickname panel
+const _origOpenSubPanel = openSubPanel;
+openSubPanel = function(name) {
+  _origOpenSubPanel(name);
+  if (name === 'nicknames') {
+    setTimeout(renderNicknamePanel, 100);
+  }
+};
 
 // ============================================================
 // DOM REFS
@@ -2851,7 +2978,13 @@ async function restoreChatHistory(force = false) {
   let cloudError = null;
   // Try Supabase first
   if (config.supabaseUrl && config.supabaseKey) {
-    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&order=created_at.asc&limit=200&select=role,content`;
+    // Logan migration: also check old 'default' session_id (v4.x → v5.0)
+    const sessionIds = [getSessionId()];
+    if (getActiveCharacterId() === 'logan') {
+      sessionIds.push('default'); // v4.x session_id fallback
+    }
+    for (const sid of sessionIds) {
+      const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${sid}&order=created_at.asc&limit=200&select=role,content`;
     try {
       const resp = await fetch(url, { headers: supabaseHeaders() });
       if (resp.ok) {
@@ -2859,6 +2992,9 @@ async function restoreChatHistory(force = false) {
         const rows = await resp.json();
         if (rows.length > 0) {
           history = rows;
+          if (sid !== getSessionId()) {
+            console.log('[Restore] Found ' + rows.length + ' messages under legacy session_id: ' + sid);
+          }
           // Update badge with count
           try {
             const countUrl = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&select=id`;
@@ -2874,7 +3010,8 @@ async function restoreChatHistory(force = false) {
         console.warn(`Cloud sync: HTTP ${resp.status} — table may be missing`);
       }
     } catch(e) { cloudError = 'network'; console.warn('Restore from Supabase failed:', e); }
-  }
+    } // end for (sessionIds)
+  } // end if (config.supabaseUrl)
   _cloudAvailable = cloudOk;
   // Fallback to local
   if (!history || history.length === 0) {
@@ -2882,12 +3019,10 @@ async function restoreChatHistory(force = false) {
     if (history.length > 0) updateMemoryBadge(history.length, false);
   }
   // Deduplicate: remove identical consecutive messages (same role+content back-to-back)
-  // This handles Supabase duplicate inserts without removing intentional repeated messages
   if (history && history.length > 0) {
     const deduped = [];
     for (let i = 0; i < history.length; i++) {
       const cur = history[i];
-      // Skip if same role+content as the previous entry (strict duplicate)
       if (i > 0) {
         const prev = history[i - 1];
         if (cur.role === prev.role && cur.content === prev.content) {
@@ -2899,16 +3034,11 @@ async function restoreChatHistory(force = false) {
     }
     history = deduped;
   }
-  // Render
+  // Render — clear everything first, then render or show welcome
+  const messagesEl = document.getElementById('messages');
+  messagesEl.innerHTML = '<div class="ts-divider" id="todayDivider"></div>';
+  
   if (history && history.length > 0) {
-    // Remove default welcome message
-    const welcome = document.getElementById('welcomeMsg');
-    if (welcome) welcome.remove();
-    // Render all messages
-    for (const msg of history) {
-      const who = msg.role === 'user' ? 'user' : 'logan';
-      appendRestoredMessage(who, msg.content);
-    }
     // Insert a subtle system message at the top
     const sysRow = document.createElement('div');
     sysRow.className = 'ts-divider';
@@ -2918,16 +3048,30 @@ async function restoreChatHistory(force = false) {
       ? 'color:#6B7280;font-size:10.5px;margin:4px 0 12px;'
       : 'color:#F59E0B;font-size:10.5px;margin:4px 0 12px;';
     messagesEl.insertBefore(sysRow, messagesEl.firstChild);
+    // Render all messages
+    for (const msg of history) {
+      const who = msg.role === 'user' ? 'user' : 'logan';
+      appendRestoredMessage(who, msg.content);
+    }
     _historyRestored = true;
   } else {
-    // Show empty-state if no history from either source
+    // No history — show welcome message
+    const char = getActiveCharacter();
+    const characterId = getActiveCharacterId();
+    const welcomeMsg = document.createElement('div');
+    welcomeMsg.className = 'msg-row logan';
+    welcomeMsg.id = 'welcomeMsg';
+    const welcomeAvatarSrc = getCharAvatarSrc();
+    const welcomeAvatarHtml = welcomeAvatarSrc
+      ? '<img src="' + welcomeAvatarSrc + '" style="width:100%;height:100%;border-radius:50%;object-fit:cover">'
+      : char.emoji;
+    welcomeMsg.innerHTML = '<div class="msg-bubble-wrap"><div class="avatar-small">' + welcomeAvatarHtml + '</div><div class="msg-bubble">' + getWelcomeMessage(characterId) + '</div></div><div class="msg-time">now</div>';
+    messagesEl.appendChild(welcomeMsg);
     if (cloudError) {
-      const welcome = document.getElementById('welcomeMsg');
-      if (welcome) {
-        const timeEl = welcome.querySelector('.msg-time');
-        if (timeEl) timeEl.textContent = `cloud sync unavailable (HTTP ${cloudError}) — saving locally`;
-      }
+      const timeEl = welcomeMsg.querySelector('.msg-time');
+      if (timeEl) timeEl.textContent = `cloud sync unavailable (HTTP ${cloudError}) — saving locally`;
     }
+    _historyRestored = true;
   }
   scrollToBottom();
 }
@@ -3129,6 +3273,39 @@ function jumpToMessage(refEl) {
 }
 
 // ============================================================
+// KEYBOARD HANDLING — adjust viewport height on mobile
+// ============================================================
+function setupKeyboardHandler() {
+  if (!window.visualViewport) return; // desktop browsers may not support
+  let lastHeight = window.visualViewport.height;
+  
+  window.visualViewport.addEventListener('resize', () => {
+    const vh = window.visualViewport.height;
+    if (Math.abs(vh - lastHeight) < 10) return; // ignore tiny changes
+    lastHeight = vh;
+    
+    // Set CSS variable for all view containers
+    document.documentElement.style.setProperty('--vvh', vh + 'px');
+    
+    // If keyboard just opened (viewport shrank), scroll to bottom
+    if (vh < window.innerHeight - 50) {
+      setTimeout(scrollToBottom, 250); // wait for keyboard animation
+    }
+    
+    console.log('[Keyboard] Viewport height:', vh, 'px');
+  });
+}
+
+// Auto-scroll to bottom when input is focused
+function setupInputFocusScroll() {
+  const inputEl = document.getElementById('msgInput');
+  if (!inputEl) return;
+  inputEl.addEventListener('focus', () => {
+    setTimeout(scrollToBottom, 300); // wait for keyboard slide-up
+  });
+}
+
+// ============================================================
 // INIT (v5.0 — starts in chat list view)
 // ============================================================
 (async () => {
@@ -3145,6 +3322,10 @@ function jumpToMessage(refEl) {
     // Load user avatar and wallpaper
     loadUserAvatar();
     loadWallpaper();
+    
+    // Setup keyboard handling (must be before render)
+    setupKeyboardHandler();
+    setupInputFocusScroll();
     
     // Render chat list
     renderChatList();
