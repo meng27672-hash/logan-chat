@@ -1,7 +1,7 @@
 {
-  "name": "John Logan",
-  "short_name": "Logan",
-  "description": "Chat with John Logan",
+  "name": "Messages",
+  "short_name": "Messages",
+  "description": "Chat with friends",
   "start_url": "/logan-chat/?utm_source=pwa",
   "scope": "/logan-chat/",
   "id": "/logan-chat/",
