@@ -1989,14 +1989,15 @@ function sendDesktopNotification(replyText) {
   const icon = '/logan-chat/icon-192.png';
 
   // Delay to avoid firing while page is still loading/focusing
+  const delay = localStorage.getItem('debugInstantReply') === '1' ? 500 : 3000;
   setTimeout(() => {
-    // Skip ONLY if page is truly visible and focused (not just "has focus" in PWA)
-    // Use visibilityState which correctly detects PWA backgrounded state
-    if (document.visibilityState === 'visible' && document.hasFocus()) {
+    // Skip ONLY if page is truly visible and focused — UNLESS in debug mode
+    const isDebug = localStorage.getItem('debugInstantReply') === '1';
+    if (!isDebug && document.visibilityState === 'visible' && document.hasFocus()) {
       console.log('[Notify] Page is visible & focused, skipping notification');
       return;
     }
-    console.log('[Notify] Sending notification, visState:', document.visibilityState, 'hasFocus:', document.hasFocus());
+    console.log('[Notify] Sending notification, visState:', document.visibilityState, 'hasFocus:', document.hasFocus(), 'debug:', isDebug);
 
     const trySW = () => {
       if (swRegistration && 'showNotification' in swRegistration && Notification.permission === 'granted') {
