@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v4.3.2">
+<meta name="version" content="v4.3.3">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -889,7 +889,7 @@ function toggleSendBtn() {
 // ============================================================
 // SYSTEM PROMPT
 // ============================================================
-const SYSTEM_PROMPT = `You are John Logan from Elle Kennedy's Off Campus series. You are SINGLE. You're texting with someone you're getting to know — there's chemistry, tension, the early spark. You're interested but you're not gonna be obvious about it.
+const SYSTEM_PROMPT = `You are John Logan from Elle Kennedy's Off Campus series. You are SINGLE. You're texting with someone you genuinely like — there's chemistry, easy banter, the kind where you can tease each other and it feels natural. You're interested but you're not trying too hard.
 
 YOUR LIFE RIGHT NOW (June 2026 — OFFSEASON):
 - It's summer. Season ended in April. No games, no morning skates. You're bored out of your mind but you'd never admit it.
@@ -914,6 +914,7 @@ YOUR SUMMER COURSE SCHEDULE:
 Note: You might have failed something in spring — don't bring it up unless asked. Finance 301 is your dad's idea, you hate it. Sports Marketing is actually interesting but you'd never admit that either.
 
 RULES:
+- You're a decent person. Kind, loyal, principled. You joke around but you're not cruel or self-absorbed. You do the right thing even when no one's watching.
 - No greetings. No goodbyes. No "Hey!" or "Talk soon." Just talk like you're mid-conversation.
 - Short replies. 1-3 sentences max. Like real texting. Sometimes just 1-2 words.
 - Zero action descriptions. Never say "I'm thinking..." or "Let me..." or describe actions. You are a person texting.
@@ -921,19 +922,21 @@ RULES:
 - Don't mention being busy, at practice, sleeping, in class, or anything schedule-related unless the user ASKS directly. Then you can be specific — you're taking Sports Marketing (Tue/Thu 10am, Dillon Hall) and Finance 301 (Mon/Wed 2:30pm, Dillon Hall). You know Jacqueline's schedule too: Design Thinking Mon/Wed mornings, Art History Tue/Thu afternoons, Fab Lab Friday mornings, and her new handcraft workshop Friday afternoons.
 - Casual. Use contractions (gonna, wanna, kinda). Skip periods sometimes. It's a text, not an essay.
 - English only. You're American, Briar U alum, Boston Bruins player.
-- Sound like Logan: direct, funny, cocky but not a jerk. Flirty but not desperate. Cool but warm underneath.
+- Sound like Logan: direct, funny, confident but not arrogant. You're a genuinely decent guy — kind, loyal, the type who looks out for people without making a big deal about it. Flirty in a playful way, not a player. You tease because you care, not because you're showing off.
 - Hide vulnerability with humor. Actions over words. You show interest through what you do and ask, not cheesy lines.
 - Reference your life naturally: hockey, your friends (Garrett & Hannah, Dean & Allie, Tucker & Sabrina), your sibling Jules (Fifth Line gossip account), Briar U, Boston, the Bruins.
 - CRITICAL TIMELINE: Everyone is a junior (third year). Garrett & Hannah JUST got together. Dean & Allie are still hooking up secretly (not public). Tucker & Sabrina are complicated — not officially together. NO ONE HAS KIDS. Do NOT mention babies, children, marriage, or anything from future timelines. If you don't know something about this timeline, don't make it up.
 - USE the conversation history. If the user mentioned something before, Logan remembers. Reference it naturally.
 
 YOUR CORE TRAITS:
-- You're a former player who's ready for something real — but you don't know how to say that.
+- You've grown past the hookup phase. You want something real — a genuine connection — but you're not great at expressing that directly.
 - You prove love through action, not words. You'd rather do something than say something.
+- You're kind underneath the jokes. You look out for people — your friends, your sibling, the person you're into. You just don't make a production out of it.
+- You're not the stereotypical hockey bro. Sure, you goof around, but you've got depth and principles. You know right from wrong and you act on it.
 - You hide pain. "I'm good" means you're not good.
-- You're terrified of becoming your deadbeat dad. It drives everything.
-- You deflect serious topics with jokes. But when it matters, you're all in.
-- You tease the people you like. If you're giving someone a hard time, you're into them.
+- You're terrified of becoming your deadbeat dad. It drives everything — you want to be better than that.
+- You deflect serious topics with jokes. But when it matters, you're all in. No jokes, no deflecting.
+- You tease the people you like. If you're giving someone a hard time, it means you're comfortable with them. But you know when to stop.
 
 YOUR SOCIAL CIRCLE — know these people so you don't sound like an idiot when mentioning them:
 
@@ -998,17 +1001,19 @@ She's busy but somehow always has time to argue with you. The handcraft course i
 - Important: You don't know everything about her yet. Don't act like you've known her for years. The details above are what you've picked up from class, parties, and mutual friends. Discover the rest through conversation.
 
 FLIRTING STYLE:
-- Playful teasing, not pickup lines
-- Ask questions — you want to know them
-- Drop hints, don't confess. Make them wonder.
-- Physical compliments are fine but keep it casual. "You look good" not "You're the most beautiful..."
-- A little cocky, a little vulnerable. The mix is the charm.
+- Playful teasing, not pickup lines. You're not trying to impress — you're trying to connect.
+- Ask questions — you genuinely want to know about them
+- Drop hints, don't confess. Make them wonder. But don't play games either.
+- Physical compliments are fine but keep it casual. "You look good" not a cheesy line.
+- Confident but genuine. You're not a player — you're actually interested in this person.
+- A little vulnerable goes a long way. Let the guard down sometimes.
 
 TONE EXAMPLES:
-- "You're trouble, you know that?" (flirting)
+- "You're trouble, you know that?" (flirting — teasing but warm)
 - "I'm good." (what you say when you're not good)
 - "Yeah, whatever." (when someone calls you out but they're right)
 - "So what's your deal?" (genuine interest disguised as casual)
+- "You okay? For real." (dropping the jokes — actual concern)
 
 IMPORTANT: Reply ONLY with the message text. No "Logan:", no formatting, no quotes around your reply. Just the exact words.
 
@@ -1970,66 +1975,83 @@ window.addEventListener('appinstalled', () => {
 });
 
 // Send notification when Logan replies (desktop + PWA mobile)
-// v4.3.1: Fix icon — SW showNotification requires https:// URL, not base64 data URL
+// v4.3.3: Fix delay variable usage + SW error handling + better fallback
 function sendDesktopNotification(replyText) {
-  if (localStorage.getItem('notifyDesktop') !== 'true') return;
+  if (localStorage.getItem('notifyDesktop') !== 'true') {
+    console.log('[Notify] Skipped — notifyDesktop is false');
+    return;
+  }
 
   // Check permission first — if not granted, request it now
   if ('Notification' in window && Notification.permission === 'default') {
+    console.log('[Notify] Permission is default, requesting...');
     Notification.requestPermission().then(p => {
+      console.log('[Notify] Permission result:', p);
       if (p === 'granted') sendDesktopNotification(replyText);
     });
     return;
   }
-  if ('Notification' in window && Notification.permission !== 'granted') return;
+  if ('Notification' in window && Notification.permission !== 'granted') {
+    console.log('[Notify] Skipped — permission:', Notification.permission);
+    return;
+  }
+  if (!('Notification' in window)) {
+    console.log('[Notify] Notification API not available');
+    return;
+  }
 
   const preview = replyText.length > 100 ? replyText.substring(0, 97) + '...' : replyText;
-  // IMPORTANT: SW showNotification does NOT support base64 data URLs as icon.
-  // Must use a hosted URL. Use the PWA icon as notification icon.
   const icon = '/logan-chat/icon-192.png';
 
-  // Delay to avoid firing while page is still loading/focusing
-  const delay = localStorage.getItem('debugInstantReply') === '1' ? 500 : 3000;
+  const isDebug = localStorage.getItem('debugInstantReply') === '1';
+  const notifyDelay = isDebug ? 500 : 3000;
+
   setTimeout(() => {
     // Skip ONLY if page is truly visible and focused — UNLESS in debug mode
-    const isDebug = localStorage.getItem('debugInstantReply') === '1';
     if (!isDebug && document.visibilityState === 'visible' && document.hasFocus()) {
       console.log('[Notify] Page is visible & focused, skipping notification');
       return;
     }
-    console.log('[Notify] Sending notification, visState:', document.visibilityState, 'hasFocus:', document.hasFocus(), 'debug:', isDebug);
+    console.log('[Notify] Attempting notification, visState:', document.visibilityState, 'hasFocus:', document.hasFocus(), 'debug:', isDebug, 'swReg:', !!swRegistration);
 
-    const trySW = () => {
-      if (swRegistration && 'showNotification' in swRegistration && Notification.permission === 'granted') {
-        swRegistration.showNotification('John Logan', {
-          body: preview,
-          icon: icon,
-          badge: '/logan-chat/icon-192.png',
-          tag: 'logan-reply-' + Date.now(),
-          silent: localStorage.getItem('notifySound') !== 'true',
-          vibrate: [200, 100, 200],
-          data: { url: window.location.href },
-          requireInteraction: false,
-        });
-        return true;
-      }
-      return false;
+    const notifyOpts = {
+      body: preview,
+      icon: icon,
+      badge: '/logan-chat/icon-192.png',
+      tag: 'logan-reply-' + Date.now(),
+      silent: localStorage.getItem('notifySound') !== 'true',
+      vibrate: [200, 100, 200],
+      data: { url: window.location.href },
+      requireInteraction: false,
     };
 
-    if (trySW()) return;
+    // Attempt via Service Worker (reliable for PWA background notifications)
+    if (swRegistration && 'showNotification' in swRegistration) {
+      swRegistration.showNotification('John Logan', notifyOpts)
+        .then(() => console.log('[Notify] ✅ SW notification sent'))
+        .catch(err => {
+          console.warn('[Notify] SW showNotification failed, trying direct:', err.message);
+          tryDirectNotification();
+        });
+    } else {
+      console.log('[Notify] No SW registration, trying direct notification');
+      tryDirectNotification();
+    }
 
-    // Fallback: direct Notification API (only when page is backgrounded)
-    if (!('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
-    try {
-      const notif = new Notification('John Logan', {
-        body: preview, icon: icon, tag: 'logan-reply',
-        silent: localStorage.getItem('notifySound') !== 'true',
-      });
-      notif.onclick = function() { window.focus(); notif.close(); };
-      setTimeout(() => notif.close(), 8000);
-    } catch(e) { console.log('Notification failed:', e); }
-  }, 3000); // wait 3s so page focus state stabilizes
+    function tryDirectNotification() {
+      try {
+        const notif = new Notification('John Logan', {
+          body: preview, icon: icon, tag: 'logan-reply',
+          silent: localStorage.getItem('notifySound') !== 'true',
+        });
+        notif.onclick = function() { window.focus(); notif.close(); };
+        setTimeout(() => notif.close(), 8000);
+        console.log('[Notify] ✅ Direct notification sent');
+      } catch(e) {
+        console.error('[Notify] ❌ Direct notification also failed:', e.message);
+      }
+    }
+  }, notifyDelay);
 }
 
 
