@@ -395,6 +395,16 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="settings-item toggle-row" style="margin-top:2px">
+          <div class="toggle-label">
+            <div>Debug: Instant Reply</div>
+            <div class="toggle-desc">Skip sleep & delays — Logan replies within seconds</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="debugToggle" onchange="toggleDebugMode()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <div class="settings-item" onclick="setupMobilePush()" style="margin-top:8px">
           <div class="settings-item-icon" style="background:#FF6B6B">&#x1f4f1;</div>
           <div class="settings-item-text">
@@ -1889,6 +1899,19 @@ function loadNotifySettings() {
   const desktop = localStorage.getItem('notifyDesktop') === 'true';
   document.getElementById('soundToggle').checked = sound;
   document.getElementById('desktopNotifyToggle').checked = desktop;
+  // Restore debug toggle
+  const debug = localStorage.getItem('debugInstantReply') === '1';
+  const debugToggle = document.getElementById('debugToggle');
+  if (debugToggle) debugToggle.checked = debug;
+}
+
+// Debug mode toggle — accessible from Settings on mobile too
+function toggleDebugMode() {
+  const checked = document.getElementById('debugToggle').checked;
+  localStorage.setItem('debugInstantReply', checked ? '1' : '0');
+  // Also clear any cached state so it takes effect immediately
+  localStorage.removeItem('loganState');
+  showToast(checked ? 'Debug ON — instant replies' : 'Debug OFF — normal schedule');
 }
 
 // Mobile push setup guide
