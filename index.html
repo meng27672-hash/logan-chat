@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.3.0">
+<meta name="version" content="v5.4.0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1018,6 +1018,10 @@ function openChat(characterId) {
   // Restore this character's history (will show welcome if no history)
   restoreChatHistory(true);
   
+  // Clear unread badge for this character
+  clearUnread(characterId);
+  renderChatList();
+  
   // Apply chat bubble colors
   applyCharacterColors(characterId);
   
@@ -1959,29 +1963,44 @@ function getLocalPendingReply(cid) {
   } catch(e) { return null; }
 }
 async function deliverPendingReply(pending) {
-  // 1) Mark the last user message as read
-  const allUserRows = document.querySelectorAll('.msg-row.user');
-  const lastRow = allUserRows[allUserRows.length - 1];
-  if (lastRow) {
-    const readEl = lastRow.querySelector('.read-status');
-    if (readEl) {
-      readEl.textContent = '✓✓';
-      readEl.classList.add('read');
-      readEl.dataset.read = 'read';
-    }
-  }
-  // 2) Typing indicator
-  typingEl.classList.add('show');
-  scrollToBottom();
-  await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
-  typingEl.classList.remove('show');
-  // 3) Call API and deliver
   const cid = pending.cid;
+  // Only mark as read + show typing if this chat is currently open
+  const isChatOpen = getActiveCharacterId() === cid &&
+    document.getElementById('chatView').classList.contains('active');
+  
+  if (isChatOpen) {
+    // 1) Mark the last user message as read (only if in this chat)
+    const allUserRows = document.querySelectorAll('.msg-row.user');
+    const lastRow = allUserRows[allUserRows.length - 1];
+    if (lastRow) {
+      const readEl = lastRow.querySelector('.read-status');
+      if (readEl) {
+        readEl.textContent = '✓✓';
+        readEl.classList.add('read');
+        readEl.dataset.read = 'read';
+      }
+    }
+    // 2) Typing indicator
+    typingEl.classList.add('show');
+    scrollToBottom();
+    await new Promise(r => setTimeout(r, 1500 + Math.random() * 2000));
+    typingEl.classList.remove('show');
+  }
+  
+  // 3) Call API and deliver
   const prevCid = getActiveCharacterId();
   setActiveCharacterId(cid);
   const reply = await callLoganAPI(pending.apiText);
-  appendMessage(cid, reply);
+  
+  if (isChatOpen) {
+    appendMessage(cid, reply);
+  }
   await addMessage('assistant', reply);
+  if (!isChatOpen) {
+    // Not in this chat — increment unread badge and refresh list
+    incrementUnread(cid);
+    renderChatList();
+  }
   sendDesktopNotification(reply);
   setActiveCharacterId(prevCid);
   clearLocalPendingReply(cid);
@@ -2008,7 +2027,6 @@ async function recoverLocalPendingReplies(cid) {
     }, remaining);
   }
 }
-// ── End Local Pending ──
 
 let pendingReplyIds = []; // Track pending IDs for this session
 let processedPendingIds = new Set(JSON.parse(localStorage.getItem('processedPendingIds') || '[]')); // Persist across sessions
@@ -2071,6 +2089,10 @@ async function pollPendingReplies() {
 
         // Desktop/Web Push notification (always send when reply arrives)
         sendDesktopNotification(item.reply);
+
+        // Update unread count and chat list preview
+        incrementUnread(getActiveCharacterId());
+        renderChatList();
 
         // Remove from tracking
         pendingReplyIds = pendingReplyIds.filter(pid => pid !== item.id);
@@ -2234,6 +2256,7 @@ async function sendMessage() {
       sendDesktopNotification(reply);
       clearLocalPendingReply(who); // remove the pending entry we saved earlier
       localStorage.removeItem(lockKey); // release cross-tab lock
+      renderChatList(); // refresh preview + timestamps
       isProcessing = false;
 
     } else {
@@ -3121,34 +3144,51 @@ function sendSticker(name) {
 async function triggerLoganReply(contextNote) {
   const typingEl = document.getElementById('typingIndicator');
   typingEl.style.display = 'flex';
+  const activeCid = getActiveCharacterId(); // capture at call time, not after await
   
   try {
-    const messages = await loadContextMessages(20);
-    messages.push({ role: 'user', content: contextNote });
+    // Use the same getMemoryForMessage path as normal replies for context + system prompt
+    const { recentMessages } = await getMemoryForMessage(contextNote);
+    const systemPrompt = getSystemPrompt(); // active character's prompt
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...recentMessages.slice(-20),
+      { role: 'user', content: contextNote }
+    ];
     
-    const resp = await fetch('https://api.deepseek.com/chat/completions', {
+    const provider = config.provider || 'deepseek';
+    const apiUrl = provider === 'openai'
+      ? 'https://api.openai.com/v1/chat/completions'
+      : provider === 'custom'
+        ? (config.customUrl || 'https://api.deepseek.com/chat/completions')
+        : 'https://api.deepseek.com/chat/completions';
+
+    const resp = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.apiKey}`
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: config.model || 'deepseek-chat',
         messages: messages,
         temperature: 0.9,
-        max_tokens: 300
+        max_tokens: 200
       })
     });
     
     const data = await resp.json();
-    const reply = data.choices?.[0]?.message?.content || "Yeah.";
+    if (data.error) throw new Error(data.error.message);
+    const reply = data.choices?.[0]?.message?.content?.trim() || "Yeah.";
     
     typingEl.style.display = 'none';
-    appendMessage('logan', reply);
-    saveMessage('assistant', reply);
+    appendMessage(activeCid, reply); // use active character, NOT hardcoded 'logan'
+    await addMessage('assistant', reply);
+    sendDesktopNotification(reply);
   } catch(e) {
     typingEl.style.display = 'none';
-    appendMessage('logan', "Hmm, bad signal. What's up?");
+    const fallbacks = { logan: "Hmm, bad signal. What's up?", spencer: "Network hiccup. What were you saying?", shane: "hold on, something went wrong" };
+    appendMessage(activeCid, fallbacks[activeCid] || "...");
   }
 }
 
@@ -3227,9 +3267,10 @@ async function restoreChatHistory(force = false) {
       ? 'color:#6B7280;font-size:10.5px;margin:4px 0 12px;'
       : 'color:#F59E0B;font-size:10.5px;margin:4px 0 12px;';
     messagesEl.insertBefore(sysRow, messagesEl.firstChild);
-    // Render all messages
+    // Render all messages — use active character ID for assistant messages
+    const activeCidForRender = getActiveCharacterId();
     for (const msg of history) {
-      const who = msg.role === 'user' ? 'user' : 'logan';
+      const who = msg.role === 'user' ? 'user' : activeCidForRender;
       appendRestoredMessage(who, msg.content);
     }
     _historyRestored = true;
@@ -3253,6 +3294,10 @@ async function restoreChatHistory(force = false) {
     _historyRestored = true;
   }
   scrollToBottom();
+  // Recover any pending local reply for this character (survives PWA reload)
+  // INIT already handles recovery for characters not yet opened — this covers the just-opened chat
+  const _recoverCid = getActiveCharacterId();
+  setTimeout(() => recoverLocalPendingReplies(_recoverCid), 500);
 }
 
 // appendRestoredMessage: like appendMessage but shows ✓✓ for user messages (already read)
@@ -3264,9 +3309,10 @@ function appendRestoredMessage(who, text) {
   const readHtml = who === 'user'
     ? `<span class="read-status read">✓✓</span>`
     : '';
-  const avatarSrc = (who === 'logan' || who === 'spencer' || who === 'shane') ? getCharAvatarSrc() : '';
+  const isCharMsg = (who !== 'user'); // any non-user role = character avatar
+  const avatarSrc = isCharMsg ? getCharAvatarSrc() : '';
   const userAvatarSrc = (who === 'user' && localStorage.getItem('userAvatar')) ? localStorage.getItem('userAvatar') : '';
-  const avatarHtml = (who === 'logan' || who === 'spencer' || who === 'shane')
+  const avatarHtml = isCharMsg
     ? `<div class="avatar-small"><img src="${avatarSrc}" alt="" class="chat-avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>`
     : (userAvatarSrc
       ? `<div class="avatar-small user-avatar"><img src="${userAvatarSrc}" alt="" class="user-avatar-img" style="width:100%;height:100%;border-radius:50%;object-fit:cover"></div>`
@@ -3509,6 +3555,60 @@ function setupInputFocusScroll() {
     // Render chat list
     renderChatList();
     
+    // ── PWA reopen: clear any stale cross-tab send locks (older than 10s) ──
+    for (const cid of ['logan', 'spencer', 'shane']) {
+      const lockKey = 'sendLock_' + cid;
+      const lockTs = parseInt(localStorage.getItem(lockKey) || '0');
+      if (Date.now() - lockTs > 10000) {
+        localStorage.removeItem(lockKey);
+      }
+    }
+
+    // ── PWA reopen: recover pending local replies for ALL characters ──
+    // (normally called inside restoreChatHistory, but that only runs when a chat is opened)
+    // We do a silent recovery pass here so replies are never permanently lost.
+    for (const cid of ['logan', 'spencer', 'shane']) {
+      const pending = getLocalPendingReply(cid);
+      if (pending) {
+        console.log('[Init] Found pending reply for', cid, '— scheduling recovery');
+        const now = Date.now();
+        const remaining = Math.max(0, pending.scheduledAt - now);
+        setTimeout(async () => {
+          // Only deliver if we're not currently viewing this chat (avoid double delivery)
+          const stillPending = getLocalPendingReply(cid);
+          if (!stillPending) return; // already delivered when user opened chat
+          clearLocalPendingReply(cid);
+          // Set active character context for correct API call + avatar
+          const prevCid = getActiveCharacterId();
+          setActiveCharacterId(cid);
+          try {
+            const reply = await callLoganAPI(stillPending.apiText);
+            // Only append to DOM if user has this chat open
+            if (getActiveCharacterId() === cid && document.getElementById('chatView').classList.contains('active')) {
+              const allUserRows = document.querySelectorAll('.msg-row.user');
+              const lastRow = allUserRows[allUserRows.length - 1];
+              if (lastRow) {
+                const readEl = lastRow.querySelector('.read-status');
+                if (readEl) { readEl.textContent = '✓✓'; readEl.classList.add('read'); }
+              }
+              typingEl.classList.add('show');
+              scrollToBottom();
+              await new Promise(r => setTimeout(r, 1200 + Math.random() * 1500));
+              typingEl.classList.remove('show');
+              appendMessage(cid, reply);
+            }
+            await addMessage('assistant', reply);
+            incrementUnread(cid);
+            renderChatList();
+            sendDesktopNotification(reply);
+          } catch(e) {
+            console.warn('[Init recover] API failed for', cid, e);
+          }
+          setActiveCharacterId(prevCid);
+        }, remaining);
+      }
+    }
+
     // Check if API key is configured
     if (!config.apiKey) {
       setTimeout(openSettings, 500);
