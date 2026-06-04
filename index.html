@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.4.0">
+<meta name="version" content="v5.4.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2154,39 +2154,46 @@ async function recoverPendingReplies() {
   }
 }
 
-let isProcessing = false;
+// Per-character processing lock — prevents duplicate sends within one character's chat
+// but does NOT block other characters from sending simultaneously
+const _processingMap = {};
+function isProcessingChar(cid) { return !!_processingMap[cid]; }
+function setProcessingChar(cid, val) { _processingMap[cid] = val; }
 
 // ============================================================
 // SEND MESSAGE (v4.3.1: cross-tab lock to prevent PWA+browser double-send)
 // ============================================================
 async function sendMessage() {
-  if (isProcessing) {
-    console.log('[sendMessage] Already processing, ignoring duplicate send');
+  const _activeCid = getActiveCharacterId();
+  if (isProcessingChar(_activeCid)) {
+    console.log('[sendMessage] Already processing for', _activeCid, '— ignoring duplicate send');
     return;
   }
-  isProcessing = true;
+  setProcessingChar(_activeCid, true);
 
   const text = inputEl.value.trim();
-  if (!text) { isProcessing = false; return; }
-  if (!config.apiKey) { isProcessing = false; openSettings(); return; }
+  if (!text) { setProcessingChar(_activeCid, false); return; }
+  if (!config.apiKey) { setProcessingChar(_activeCid, false); openSettings(); return; }
 
   // Debounce: prevent rapid double-tap on mobile (within 800ms)
+  // Note: debounce is per-character via _activeCid key
   const now = Date.now();
-  if (window._lastSendTime && now - window._lastSendTime < 800) {
-    isProcessing = false;
-    console.log('[sendMessage] Debounced — too fast');
+  const _debounceKey = '_lastSendTime_' + _activeCid;
+  if (window[_debounceKey] && now - window[_debounceKey] < 800) {
+    setProcessingChar(_activeCid, false);
+    console.log('[sendMessage] Debounced — too fast for', _activeCid);
     return;
   }
-  window._lastSendTime = now;
+  window[_debounceKey] = now;
 
   // Cross-tab lock: prevent PWA + browser tabs from both processing the same message
   // Uses localStorage as shared state between tabs/instances
-  const lockKey = 'sendLock_' + getActiveCharacterId();
+  const lockKey = 'sendLock_' + _activeCid;
   const lockTs = parseInt(localStorage.getItem(lockKey) || '0');
   if (now - lockTs < 3000) {
     // Another tab sent within 3 seconds — skip (prevent duplicate API calls)
-    isProcessing = false;
-    console.log('[sendMessage] Cross-tab lock active, skipping (another instance is processing)');
+    setProcessingChar(_activeCid, false);
+    console.log('[sendMessage] Cross-tab lock active for', _activeCid, '— skipping');
     return;
   }
   localStorage.setItem(lockKey, String(now));
@@ -2254,10 +2261,10 @@ async function sendMessage() {
       appendMessage(who, reply);
       await addMessage('assistant', reply);
       sendDesktopNotification(reply);
-      clearLocalPendingReply(who); // remove the pending entry we saved earlier
+      clearLocalPendingReply(cid); // remove the pending entry we saved earlier
       localStorage.removeItem(lockKey); // release cross-tab lock
       renderChatList(); // refresh preview + timestamps
-      isProcessing = false;
+      setProcessingChar(_activeCid, false);
 
     } else {
       // SLOW PATH: Logan is asleep/busy/practicing — store as pending
@@ -2296,7 +2303,7 @@ async function sendMessage() {
         }
       }
       localStorage.removeItem(lockKey); // release cross-tab lock
-      isProcessing = false;
+      setProcessingChar(_activeCid, false);
     }
   } catch(e) {
     typingEl.classList.remove('show');
@@ -2308,7 +2315,7 @@ async function sendMessage() {
     errMsg.innerHTML = `<div class="bubble">⚠️ API error: ${e.message || e}</div>`;
     messagesEl.appendChild(errMsg);
     scrollToBottom();
-    isProcessing = false;
+    setProcessingChar(_activeCid, false);
   }
 }
 
