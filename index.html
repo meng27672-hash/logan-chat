@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.5.0">
+<meta name="version" content="v5.5.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -50,12 +50,12 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 
 .avatar-small{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:none;background:linear-gradient(135deg,#7C3AED,#5B21B6);align-items:center;justify-content:center;overflow:hidden}
 .avatar-small img{width:100%;height:100%;border-radius:50%;object-fit:cover}
-.msg-row.logan .avatar-small{display:flex}
+.msg-row.logan .avatar-small,.msg-row.spencer .avatar-small,.msg-row.shane .avatar-small{display:flex}
 .msg-row.user .avatar-small.user-avatar{display:flex!important}
 
 .msg-bubble{padding:9px 14px;border-radius:19px;font-size:15.5px;line-height:1.37;word-wrap:break-word;position:relative}
 .msg-row.user .msg-bubble{background:linear-gradient(135deg,#7C3AED,#6D28D9);color:#fff;border-bottom-right-radius:6px}
-.msg-row.logan .msg-bubble{background:#1C1C1E;color:#EDEDED;border-bottom-left-radius:6px}
+.msg-row.logan .msg-bubble,.msg-row.spencer .msg-bubble,.msg-row.shane .msg-bubble{background:#1C1C1E;color:#EDEDED;border-bottom-left-radius:6px}
 
 .msg-time{font-size:10.5px;color:#8E8E93;margin-top:3px;padding:0 4px;display:flex;align-items:center;gap:4px}
 .msg-row.user .msg-time{justify-content:flex-end}
@@ -1054,7 +1054,7 @@ function applyCharacterColors(characterId) {
     .msg-row.user .msg-bubble{background:${char.gradient};color:#fff;border-bottom-right-radius:6px}
     .send-btn{background:${char.gradient}}
     .header-avatar{background:${char.gradient}}
-    .msg-row.logan .avatar-small{background:${char.gradient}}
+    .msg-row.${characterId} .avatar-small{background:${char.gradient}}
   `;
 }
 
