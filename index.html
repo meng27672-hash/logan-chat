@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.4.1">
+<meta name="version" content="v5.5.0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -600,8 +600,8 @@ function getActiveCharacterId() {
 function setActiveCharacterId(id) {
   localStorage.setItem('activeCharacter', id);
 }
-function getMemoryKey() {
-  return MEMORY_KEY_PREFIX + getActiveCharacterId();
+function getMemoryKey(cid) {
+  return MEMORY_KEY_PREFIX + (cid || getActiveCharacterId());
 }
 
 // ============================================================
@@ -1176,22 +1176,22 @@ let config = loadConfig();
 // ============================================================
 // LOCAL MEMORY (fallback / cache) — v5.0 per-character
 // ============================================================
-function loadLocalMemory() {
-  try { return JSON.parse(localStorage.getItem(getMemoryKey())) || []; }
+function loadLocalMemory(cid) {
+  try { return JSON.parse(localStorage.getItem(getMemoryKey(cid))) || []; }
   catch(e) { return []; }
 }
-function saveLocalMemory(history) {
+function saveLocalMemory(history, cid) {
   if (history.length > MAX_LOCAL) history = history.slice(-MAX_LOCAL);
-  localStorage.setItem(getMemoryKey(), JSON.stringify(history));
+  localStorage.setItem(getMemoryKey(cid), JSON.stringify(history));
 }
-function clearLocalMemory() { localStorage.removeItem(getMemoryKey()); }
+function clearLocalMemory(cid) { localStorage.removeItem(getMemoryKey(cid)); }
 
 // ============================================================
 // SUPABASE MEMORY
 // ============================================================
 // Session ID — per-character (v5.0) so each character's history is isolated in Supabase
-function getSessionId() {
-  return 'default_' + getActiveCharacterId();
+function getSessionId(cid) {
+  return 'default_' + (cid || getActiveCharacterId());
 }
 
 function supabaseHeaders() {
@@ -1203,7 +1203,7 @@ function supabaseHeaders() {
   };
 }
 
-async function sbInsert(role, content) {
+async function sbInsert(role, content, cid) {
   if (!config.supabaseUrl || !config.supabaseKey) return;
   // Normalize role: 'logan' → 'assistant' for Supabase storage
   const normRole = role === 'logan' ? 'assistant' : role;
@@ -1211,15 +1211,15 @@ async function sbInsert(role, content) {
     await fetch(`${config.supabaseUrl}/rest/v1/chat_memory`, {
       method: 'POST',
       headers: supabaseHeaders(),
-      body: JSON.stringify({ session_id: getSessionId(), role: normRole, content })
+      body: JSON.stringify({ session_id: getSessionId(cid), role: normRole, content })
     });
   } catch(e) { console.warn('Supabase insert failed:', e); }
 }
 
-async function sbFetchHistory(limit = MAX_CONTEXT) {
+async function sbFetchHistory(limit = MAX_CONTEXT, cid) {
   if (!config.supabaseUrl || !config.supabaseKey) return null;
   try {
-    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&order=created_at.desc&limit=${limit}&select=role,content`;
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(cid)}&order=created_at.desc&limit=${limit}&select=role,content`;
     const resp = await fetch(url, { headers: supabaseHeaders() });
     if (!resp.ok) return null;
     const rows = await resp.json();
@@ -1232,11 +1232,11 @@ async function sbFetchHistory(limit = MAX_CONTEXT) {
 }
 
 // Fetch ALL history with timestamps for memory decay search
-async function sbFetchAllWithTimestamps() {
+async function sbFetchAllWithTimestamps(cid) {
   if (!config.supabaseUrl || !config.supabaseKey) return null;
   try {
     // Fetch up to 500 messages with timestamps
-    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&order=created_at.desc&limit=500&select=role,content,created_at`;
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(cid)}&order=created_at.desc&limit=500&select=role,content,created_at`;
     const resp = await fetch(url, { headers: supabaseHeaders() });
     if (!resp.ok) return null;
     const rows = await resp.json();
@@ -1274,8 +1274,8 @@ function classifyAge(createdAt) {
 }
 
 // Search memory with keyword matching + time decay
-async function searchMemoryWithDecay(userMessage) {
-  const allRows = await sbFetchAllWithTimestamps();
+async function searchMemoryWithDecay(userMessage, cid) {
+  const allRows = await sbFetchAllWithTimestamps(cid);
   if (!allRows || allRows.length === 0) return null;
 
   const keywords = extractKeywords(userMessage);
@@ -1351,10 +1351,10 @@ function buildMemoryContext(memoryData) {
   return parts.join('\n');
 }
 
-async function sbClearHistory() {
+async function sbClearHistory(cid) {
   if (!config.supabaseUrl || !config.supabaseKey) return;
   try {
-    await fetch(`${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}`, {
+    await fetch(`${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(cid)}`, {
       method: 'DELETE',
       headers: supabaseHeaders()
     });
@@ -1364,47 +1364,47 @@ async function sbClearHistory() {
 // ============================================================
 // MEMORY: unified
 // ============================================================
-async function addMessage(role, content) {
+async function addMessage(role, content, cid) {
   // local — guard against duplicate consecutive entries
-  const local = loadLocalMemory();
+  const local = loadLocalMemory(cid);
   const last = local[local.length - 1];
   if (!last || last.role !== role || last.content !== content) {
     local.push({ role, content });
-    saveLocalMemory(local);
+    saveLocalMemory(local, cid);
   }
   // cloud
-  await sbInsert(role, content);
+  await sbInsert(role, content, cid);
 }
 
 // Simple save (alias) — used by sticker system
 async function saveMessage(role, content) {
-  return addMessage(role, content);
+  return addMessage(role, content, getActiveCharacterId());
 }
 
-async function getHistory() {
+async function getHistory(cid) {
   // Simple recent history (no decay) — used as fallback
-  const cloud = await sbFetchHistory(MAX_CONTEXT);
+  const cloud = await sbFetchHistory(MAX_CONTEXT, cid);
   if (cloud && cloud.length > 0) {
     updateMemoryBadge(cloud.length, true);
     return cloud;
   }
   // fallback to local
-  const local = loadLocalMemory();
+  const local = loadLocalMemory(cid);
   updateMemoryBadge(local.length, false);
   return local.slice(-MAX_CONTEXT);
 }
 
 // Full memory with decay: recent context + keyword-searched archive
-async function getMemoryForMessage(userMessage) {
+async function getMemoryForMessage(userMessage, cid) {
   if (!config.supabaseUrl || !config.supabaseKey) {
     // no Supabase — use local only
-    const local = loadLocalMemory();
+    const local = loadLocalMemory(cid);
     return { recentMessages: local.slice(-20), memoryContext: '' };
   }
 
-  const memData = await searchMemoryWithDecay(userMessage);
+  const memData = await searchMemoryWithDecay(userMessage, cid);
   if (!memData) {
-    const local = loadLocalMemory();
+    const local = loadLocalMemory(cid);
     return { recentMessages: local.slice(-20), memoryContext: '' };
   }
 
@@ -1638,7 +1638,7 @@ function getSystemPrompt() {
 // ============================================================
 // API CALL
 // ============================================================
-async function callLoganAPI(userMessage) {
+async function callLoganAPI(userMessage, cid) {
   const provider = config.provider || 'deepseek';
   const model    = config.model    || 'deepseek-chat';
   let apiUrl;
@@ -1651,8 +1651,8 @@ async function callLoganAPI(userMessage) {
     apiUrl = 'https://api.deepseek.com/chat/completions';
   }
 
-  // Get memory with time-decay search
-  const { recentMessages, memoryContext } = await getMemoryForMessage(userMessage);
+  // Get memory with time-decay search — explicit cid prevents cross-character leaks
+  const { recentMessages, memoryContext } = await getMemoryForMessage(userMessage, cid);
 
   // Build system prompt — inject memory context if available
   let fullSystemPrompt = getSystemPrompt();
@@ -1693,7 +1693,7 @@ async function callLoganAPI(userMessage) {
       body: JSON.stringify({
         message: userMessage,
         history: recentMessages.slice(-20),
-        session_id: getSessionId()
+        session_id: getSessionId(cid)
       })
     }).then(r => r.json()).catch(e => {
       console.warn('Edge Function call failed (non-critical):', e);
@@ -1990,12 +1990,12 @@ async function deliverPendingReply(pending) {
   // 3) Call API and deliver
   const prevCid = getActiveCharacterId();
   setActiveCharacterId(cid);
-  const reply = await callLoganAPI(pending.apiText);
+  const reply = await callLoganAPI(pending.apiText, cid);
   
   if (isChatOpen) {
     appendMessage(cid, reply);
   }
-  await addMessage('assistant', reply);
+  await addMessage('assistant', reply, cid);
   if (!isChatOpen) {
     // Not in this chat — increment unread badge and refresh list
     incrementUnread(cid);
@@ -2085,7 +2085,7 @@ async function pollPendingReplies() {
         await new Promise(r => setTimeout(r, 1500 + Math.random() * 1500));
         typingEl.classList.remove('show');
         appendMessage('logan', item.reply);
-        await addMessage('assistant', item.reply);
+        await addMessage('assistant', item.reply, 'logan');
 
         // Desktop/Web Push notification (always send when reply arrives)
         sendDesktopNotification(item.reply);
@@ -2222,7 +2222,7 @@ async function sendMessage() {
 
   // Save to Supabase (user message)
   if (config.supabaseUrl && config.supabaseKey) {
-    try { await addMessage('user', text); } catch(e) { console.warn('Save failed:', e); }
+    try { await addMessage('user', text, _activeCid); } catch(e) { console.warn('Save failed:', e); }
   }
 
   try {
@@ -2256,10 +2256,10 @@ async function sendMessage() {
       typingEl.classList.remove('show');
 
       // Call API and show reply
-      const reply = await callLoganAPI(apiText);
+      const reply = await callLoganAPI(apiText, _activeCid);
       const who = getActiveCharacterId();
       appendMessage(who, reply);
-      await addMessage('assistant', reply);
+      await addMessage('assistant', reply, _activeCid);
       sendDesktopNotification(reply);
       clearLocalPendingReply(cid); // remove the pending entry we saved earlier
       localStorage.removeItem(lockKey); // release cross-tab lock
@@ -2277,7 +2277,7 @@ async function sendMessage() {
       if (config.supabaseUrl && config.supabaseKey) {
         try {
           const body = JSON.stringify({
-            session_id: getSessionId(),
+            session_id: getSessionId(_activeCid),
             user_message: apiText,
             scheduled_at: scheduledAt,
             status: 'pending'
@@ -2493,8 +2493,9 @@ async function saveSettings() {
 }
 
 async function resetMemory() {
-  clearLocalMemory();
-  await sbClearHistory();
+  const cid = getActiveCharacterId();
+  clearLocalMemory(cid);
+  await sbClearHistory(cid);
   const msgEl = document.getElementById('statusMsg');
   if (msgEl) { msgEl.textContent = 'Memory cleared!'; msgEl.className = 'status-msg ok'; }
   updateMemoryBadge(0, !!config.supabaseKey);
@@ -3155,14 +3156,14 @@ async function triggerLoganReply(contextNote) {
   
   try {
     // Use the same getMemoryForMessage path as normal replies for context + system prompt
-    const { recentMessages } = await getMemoryForMessage(contextNote);
+    const { recentMessages } = await getMemoryForMessage(contextNote, activeCid);
     const systemPrompt = getSystemPrompt(); // active character's prompt
     const messages = [
       { role: 'system', content: systemPrompt },
       ...recentMessages.slice(-20),
       { role: 'user', content: contextNote }
     ];
-    
+
     const provider = config.provider || 'deepseek';
     const apiUrl = provider === 'openai'
       ? 'https://api.openai.com/v1/chat/completions'
@@ -3183,14 +3184,14 @@ async function triggerLoganReply(contextNote) {
         max_tokens: 200
       })
     });
-    
+
     const data = await resp.json();
     if (data.error) throw new Error(data.error.message);
     const reply = data.choices?.[0]?.message?.content?.trim() || "Yeah.";
-    
+
     typingEl.style.display = 'none';
     appendMessage(activeCid, reply); // use active character, NOT hardcoded 'logan'
-    await addMessage('assistant', reply);
+    await addMessage('assistant', reply, activeCid);
     sendDesktopNotification(reply);
   } catch(e) {
     typingEl.style.display = 'none';
@@ -3212,9 +3213,10 @@ async function restoreChatHistory(force = false) {
   let history = null;
   let cloudOk = false;
   let cloudError = null;
+  const _restoreCid = getActiveCharacterId(); // capture to prevent proactive interference
   // Try Supabase first
   if (config.supabaseUrl && config.supabaseKey) {
-    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&order=created_at.asc&limit=200&select=role,content`;
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(_restoreCid)}&order=created_at.asc&limit=200&select=role,content`;
     try {
       const resp = await fetch(url, { headers: supabaseHeaders() });
       if (resp.ok) {
@@ -3224,7 +3226,7 @@ async function restoreChatHistory(force = false) {
           history = rows;
           // Update badge with count
           try {
-            const countUrl = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId()}&select=id`;
+            const countUrl = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(_restoreCid)}&select=id`;
             const r = await fetch(countUrl, {
               headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' }
             });
@@ -3241,7 +3243,7 @@ async function restoreChatHistory(force = false) {
   _cloudAvailable = cloudOk;
   // Fallback to local
   if (!history || history.length === 0) {
-    history = loadLocalMemory();
+    history = loadLocalMemory(_restoreCid);
     if (history.length > 0) updateMemoryBadge(history.length, false);
   }
   // Deduplicate: remove identical consecutive messages (same role+content back-to-back)
@@ -3589,7 +3591,7 @@ function setupInputFocusScroll() {
           const prevCid = getActiveCharacterId();
           setActiveCharacterId(cid);
           try {
-            const reply = await callLoganAPI(stillPending.apiText);
+            const reply = await callLoganAPI(stillPending.apiText, cid);
             // Only append to DOM if user has this chat open
             if (getActiveCharacterId() === cid && document.getElementById('chatView').classList.contains('active')) {
               const allUserRows = document.querySelectorAll('.msg-row.user');
@@ -3604,7 +3606,7 @@ function setupInputFocusScroll() {
               typingEl.classList.remove('show');
               appendMessage(cid, reply);
             }
-            await addMessage('assistant', reply);
+            await addMessage('assistant', reply, cid);
             incrementUnread(cid);
             renderChatList();
             sendDesktopNotification(reply);
@@ -3717,7 +3719,7 @@ async function checkProactiveForChar(cid) {
   setActiveCharacterId(cid);
 
   try {
-    const { recentMessages, memoryContext } = await getMemoryForMessage('__PROACTIVE__');
+    const { recentMessages, memoryContext } = await getMemoryForMessage('__PROACTIVE__', cid);
 
     let fullSystemPrompt = getSystemPrompt() + '\n\nCRITICAL: You are initiating a conversation. The other person hasn\'t texted in a while. You\'re thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you\'re just wondering what they\'re up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven\'t heard from you". Just start talking like you just thought of them.';
     if (memoryContext) {
@@ -3759,7 +3761,7 @@ async function checkProactiveForChar(cid) {
       localStorage.setItem(memKey, JSON.stringify(local));
 
       if (config.supabaseUrl && config.supabaseKey) {
-        try { await addMessage('assistant', reply); } catch(e) {}
+        try { await addMessage('assistant', reply, cid); } catch(e) {}
       }
 
       renderChatList();
