@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.5.1">
+<meta name="version" content="v5.5.2">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1654,8 +1654,8 @@ async function callLoganAPI(userMessage, cid) {
   // Get memory with time-decay search — explicit cid prevents cross-character leaks
   const { recentMessages, memoryContext } = await getMemoryForMessage(userMessage, cid);
 
-  // Build system prompt — inject memory context if available
-  let fullSystemPrompt = getSystemPrompt();
+  // Build system prompt — use explicit cid (NOT global activeCharacterId)
+  let fullSystemPrompt = (CHARACTERS[cid] || CHARACTERS.logan).systemPrompt;
   if (memoryContext) {
     fullSystemPrompt += `\n\n---\nMEMORY (USE THIS WHEN RELEVANT):${memoryContext}\n\nIMPORTANT MEMORY RULES:\n- Only reference older memories if the current message is actually related to them.\n- Match your certainty to the clarity label. CRYSTAL CLEAR → speak confidently. FUZZY → hedge with "I think you said..." or "you mentioned something like...". VERY FUZZY → "I vaguely remember...", "wasn't that...?"\n- Never dump all memories at once. Only bring up what's relevant to right now.\n- Keep replies SHORT still. 1-3 sentences. Memory references should feel natural, not like a recap.\n---`;
   }
@@ -1987,9 +1987,7 @@ async function deliverPendingReply(pending) {
     typingEl.classList.remove('show');
   }
   
-  // 3) Call API and deliver
-  const prevCid = getActiveCharacterId();
-  setActiveCharacterId(cid);
+  // 3) Call API and deliver — use explicit cid, no need to switch global state
   const reply = await callLoganAPI(pending.apiText, cid);
   
   if (isChatOpen) {
@@ -2000,9 +1998,10 @@ async function deliverPendingReply(pending) {
     // Not in this chat — increment unread badge and refresh list
     incrementUnread(cid);
     renderChatList();
+  } else {
+    renderChatList(); // refresh preview even when chat is open
   }
   sendDesktopNotification(reply);
-  setActiveCharacterId(prevCid);
   clearLocalPendingReply(cid);
 }
 async function recoverLocalPendingReplies(cid) {
@@ -2054,7 +2053,7 @@ async function pollPendingReplies() {
       const unprocessed = pendingReplyIds.filter(id => !processedPendingIds.has(id));
       if (unprocessed.length === 0) { isPolling = false; return; }
       const ids = unprocessed.join(',');
-      const url = `${config.supabaseUrl}/rest/v1/pending_replies?id=in.(${ids})&status=eq.completed&select=id,status,reply`;
+      const url = `${config.supabaseUrl}/rest/v1/pending_replies?id=in.(${ids})&status=eq.completed&select=id,status,reply,session_id`;
       const resp = await fetch(url, { headers: supabaseHeaders() });
       const data = await resp.json();
 
@@ -2079,19 +2078,29 @@ async function pollPendingReplies() {
           }
         }
 
-        // Append Logan's reply
-        typingEl.classList.add('show');
-        scrollToBottom();
-        await new Promise(r => setTimeout(r, 1500 + Math.random() * 1500));
-        typingEl.classList.remove('show');
-        appendMessage('logan', item.reply);
-        await addMessage('assistant', item.reply, 'logan');
+        // Determine which character this pending reply belongs to
+        // session_id format: 'default_logan' / 'default_spencer' / 'default_shane'
+        const pendingCid = (item.session_id || 'default_logan').replace('default_', '') || 'logan';
+        const pendingChatOpen = getActiveCharacterId() === pendingCid &&
+          document.getElementById('chatView').classList.contains('active');
+
+        // Append reply
+        if (pendingChatOpen) {
+          typingEl.classList.add('show');
+          scrollToBottom();
+          await new Promise(r => setTimeout(r, 1500 + Math.random() * 1500));
+          typingEl.classList.remove('show');
+          appendMessage(pendingCid, item.reply);
+        }
+        await addMessage('assistant', item.reply, pendingCid);
 
         // Desktop/Web Push notification (always send when reply arrives)
         sendDesktopNotification(item.reply);
 
         // Update unread count and chat list preview
-        incrementUnread(getActiveCharacterId());
+        if (!pendingChatOpen) {
+          incrementUnread(pendingCid);
+        }
         renderChatList();
 
         // Remove from tracking
@@ -2256,9 +2265,17 @@ async function sendMessage() {
       typingEl.classList.remove('show');
 
       // Call API and show reply
+      // IMPORTANT: use _activeCid (captured at sendMessage start) NOT getActiveCharacterId()
+      // because user may have switched tabs during the setTimeout wait
       const reply = await callLoganAPI(apiText, _activeCid);
-      const who = getActiveCharacterId();
-      appendMessage(who, reply);
+      // Only append to DOM if we're still viewing this character's chat
+      if (getActiveCharacterId() === _activeCid &&
+          document.getElementById('chatView').classList.contains('active')) {
+        appendMessage(_activeCid, reply);
+      } else {
+        // User switched away — don't inject into wrong chat, just update list
+        incrementUnread(_activeCid);
+      }
       await addMessage('assistant', reply, _activeCid);
       sendDesktopNotification(reply);
       clearLocalPendingReply(cid); // remove the pending entry we saved earlier
@@ -3587,13 +3604,12 @@ function setupInputFocusScroll() {
           const stillPending = getLocalPendingReply(cid);
           if (!stillPending) return; // already delivered when user opened chat
           clearLocalPendingReply(cid);
-          // Set active character context for correct API call + avatar
-          const prevCid = getActiveCharacterId();
-          setActiveCharacterId(cid);
+          // callLoganAPI uses explicit cid — no need to switch global state
           try {
             const reply = await callLoganAPI(stillPending.apiText, cid);
             // Only append to DOM if user has this chat open
-            if (getActiveCharacterId() === cid && document.getElementById('chatView').classList.contains('active')) {
+            const recoverChatOpen = getActiveCharacterId() === cid && document.getElementById('chatView').classList.contains('active');
+            if (recoverChatOpen) {
               const allUserRows = document.querySelectorAll('.msg-row.user');
               const lastRow = allUserRows[allUserRows.length - 1];
               if (lastRow) {
@@ -3605,15 +3621,15 @@ function setupInputFocusScroll() {
               await new Promise(r => setTimeout(r, 1200 + Math.random() * 1500));
               typingEl.classList.remove('show');
               appendMessage(cid, reply);
+            } else {
+              incrementUnread(cid);
             }
             await addMessage('assistant', reply, cid);
-            incrementUnread(cid);
             renderChatList();
             sendDesktopNotification(reply);
           } catch(e) {
             console.warn('[Init recover] API failed for', cid, e);
           }
-          setActiveCharacterId(prevCid);
         }, remaining);
       }
     }
@@ -3715,13 +3731,13 @@ async function checkProactiveForChar(cid) {
   proactiveTypingChar = cid;
 
   console.log('[Proactive] ' + char.name + ' is initiating...');
-  const prevCid = getActiveCharacterId();
-  setActiveCharacterId(cid);
+  // No longer need to switch global activeCharacterId — callLoganAPI/getMemoryForMessage use explicit cid
 
   try {
     const { recentMessages, memoryContext } = await getMemoryForMessage('__PROACTIVE__', cid);
 
-    let fullSystemPrompt = getSystemPrompt() + '\n\nCRITICAL: You are initiating a conversation. The other person hasn\'t texted in a while. You\'re thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you\'re just wondering what they\'re up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven\'t heard from you". Just start talking like you just thought of them.';
+    // Use explicit cid for system prompt, NOT getSystemPrompt() which reads global state
+    let fullSystemPrompt = (CHARACTERS[cid] || CHARACTERS.logan).systemPrompt + '\n\nCRITICAL: You are initiating a conversation. The other person hasn\'t texted in a while. You\'re thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you\'re just wondering what they\'re up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven\'t heard from you". Just start talking like you just thought of them.';
     if (memoryContext) {
       fullSystemPrompt += '\n\nMEMORY CONTEXT:' + memoryContext;
     }
@@ -3754,14 +3770,22 @@ async function checkProactiveForChar(cid) {
 
     const reply = data.choices?.[0]?.message?.content?.trim();
     if (reply && reply.length > 0) {
-      const memKey = MEMORY_KEY_PREFIX + cid;
-      const local = JSON.parse(localStorage.getItem(memKey) || '[]');
-      local.push({ role: 'assistant', content: reply, created_at: new Date().toISOString() });
-      if (local.length > MAX_LOCAL) local.splice(0, local.length - MAX_LOCAL);
-      localStorage.setItem(memKey, JSON.stringify(local));
+      // Save to memory (addMessage handles localStorage + Supabase, skip manual push)
+      await addMessage('assistant', reply, cid);
 
-      if (config.supabaseUrl && config.supabaseKey) {
-        try { await addMessage('assistant', reply, cid); } catch(e) {}
+      // Show in chat if this character's conversation is currently open
+      const proactiveChatOpen = getActiveCharacterId() === cid &&
+        document.getElementById('chatView').classList.contains('active');
+      if (proactiveChatOpen) {
+        // Show typing briefly then append
+        typingEl.classList.add('show');
+        scrollToBottom();
+        await new Promise(r => setTimeout(r, 1200 + Math.random() * 1500));
+        typingEl.classList.remove('show');
+        appendMessage(cid, reply);
+      } else {
+        // Not in this chat — bump the unread badge
+        incrementUnread(cid);
       }
 
       renderChatList();
@@ -3771,7 +3795,7 @@ async function checkProactiveForChar(cid) {
     console.warn('[Proactive] Failed for ' + cid + ':', e);
   }
 
-  setActiveCharacterId(prevCid);
+  // No setActiveCharacterId(prevCid) needed — we never changed it
   scheduleNextProactiveForChar(cid);
   proactiveTypingChar = null;
 }
