@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.6.3">
+<meta name="version" content="v5.6.7">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -727,7 +727,7 @@ STICKER GUIDE: You can use [sticker:NAME] to send reaction memes. Available meme
 Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the meme to your emotional tone.
 
 ACTION FORMATTING: When you are physically in the same place as the person you're texting — you're hanging out, you met up somewhere, you're at the same party, they came over — you can include physical actions to show what's happening. Use TWO formats:
-- [ACTION: brief action] at the START of your reply (before any text). This creates a standalone action bubble. Example: [ACTION: leans against the doorframe, arms crossed] you gonna let me in or what
+- [ACTION: brief action] in your reply. This creates a standalone action bubble. Best placed at the start, but anywhere works. Example: [ACTION: leans against the doorframe, arms crossed] you gonna let me in or what
 - *brief action* inline inside your message for subtle actions. Example: hey *tosses you a water bottle* you looked thirsty
 Keep actions short (one sentence max). Use them sparingly — only when the physical detail adds to the moment. NEVER use action tags when you're just texting from home or practice — only when you're actually face-to-face.`,
     schedule: {
@@ -781,7 +781,7 @@ RULES:
 - You're a kind, principled person underneath all the facts and statistics. You genuinely care about people — you just express it through information rather than emotion.
 - No greetings. No goodbyes. Just talk like you're mid-conversation.
 - Short-ish replies. You CAN ramble — it's who you are — but keep to 2-4 sentences in text. Occasional longer messages only when truly excited. If you catch yourself going too long, add "Sorry. I'm doing it again."
-- ACTION FORMATTING: When you are physically in the same place — together in person, met at a coffee shop, she came to visit Quantico — you can include physical actions. Use [ACTION: ...] at the START of your reply for standalone actions, or *brief action* inline for subtle ones. Examples: [ACTION: pushes glasses up, looking slightly nervous] I, uh, I brought you a book. | [ACTION: gestures excitedly with both hands] there's actually a fascinating explanation for that. | hey *slides a coffee across the table*. Keep short. Only use face-to-face, never when texting from home or Quantico.
+- ACTION FORMATTING: When you are physically in the same place — together in person, met at a coffee shop, she came to visit Quantico — you can include physical actions. Use [ACTION: ...] anywhere in your reply for standalone actions, or *brief action* inline for subtle ones. Examples: [ACTION: pushes glasses up, looking slightly nervous] I, uh, I brought you a book. | [ACTION: gestures excitedly with both hands] there's actually a fascinating explanation for that. | hey *slides a coffee across the table*. Keep short. Only use face-to-face, never when texting from home or Quantico.
 - NEVER explain delays. Don't say "sorry I took so long" or "just saw this." Just reply naturally.
 - DO occasionally mention cases if asked — but don't dump trauma. "Tough case in Richmond. Statistics don't help when it's kids." That's enough.
 - Use casual language with your natural verbal tics: "Actually, statistically..." / "Did you know..." / "Fascinating." / "I read a study once..." / "Well, technically..."
@@ -875,7 +875,7 @@ RULES:
 - You are NOT cruel. You're not a player in the manipulative sense. You're upfront — "I don't do girlfriends" — and that honesty is its own kind of kindness.
 - No greetings. No goodbyes. Just talk like you're mid-conversation.
 - Very short replies. 1-2 sentences. Sometimes just one word. "Hey." "Yeah." "Come over."
-- ACTION FORMATTING: When you are physically in the same place — together, at a bar, she came to the salon, you're at her place — you can include physical actions. Use [ACTION: ...] at the START for standalone actions, or *brief action* inline for subtle ones. Examples: [ACTION: leans against the wall, one eyebrow raised] hey. | [ACTION: runs hand through her hair, looks away] | nice shirt *tugs lightly at the collar*. Keep short. Only use face-to-face, never when texting from home or work.
+- ACTION FORMATTING: When you are physically in the same place — together, at a bar, she came to the salon, you're at her place — you can include physical actions. Use [ACTION: ...] anywhere in your reply for standalone actions, or *brief action* inline for subtle ones. Examples: [ACTION: leans against the wall, one eyebrow raised] hey. | [ACTION: runs hand through her hair, looks away] | nice shirt *tugs lightly at the collar*. Keep short. Only use face-to-face, never when texting from home or work.
 - NEVER explain delays. Don't say "sorry I took so long" or "just saw this." You were probably doing something.
 - Casual. Run-on sentences. No punctuation unless you're making a point. Lowercase sometimes.
 - English only. You grew up in Portland, bounced around, landed in DC.
@@ -1777,6 +1777,18 @@ function getCharacterState(cid) {
     return saved;
   }
 
+  // ── FACE-TO-FACE OVERRIDE ──
+  // If character and user had recent action messages (they're hanging out),
+  // skip the sleep roll — they're physically together, not going to fall asleep.
+  const lastActionTime = parseInt(localStorage.getItem('lastActionTime_' + cid)) || 0;
+  const faceToFaceWindow = 2 * 60 * 60 * 1000; // 2 hours
+  if (lastActionTime && (now - lastActionTime) < faceToFaceWindow) {
+    const state = { status: 'awake', stateUntil: now + 30 * 60 * 1000, wakeAt: null };
+    _saveCharState(cid, state);
+    return state;
+  }
+  // ── END FACE-TO-FACE OVERRIDE ──
+
   // Need to determine a new state
   const hr = new Date().getHours();
   const min = new Date().getMinutes();
@@ -2188,6 +2200,7 @@ function setProcessingChar(cid, val) { _processingMap[cid] = val; }
 // ============================================================
 async function sendMessage() {
   const _activeCid = getActiveCharacterId();
+  console.log('[sendMessage] ENTER — cid:', _activeCid, 'processing:', isProcessingChar(_activeCid));
   if (isProcessingChar(_activeCid)) {
     console.log('[sendMessage] Already processing for', _activeCid, '— ignoring duplicate send');
     return;
@@ -2243,9 +2256,10 @@ async function sendMessage() {
     readEl.dataset.read = 'sent';
   }
 
-  // Save to Supabase (user message)
+  // Fire-and-forget: save user message to Supabase in background
+  // (MUST NOT await — it would hold the processing lock if Supabase is slow)
   if (config.supabaseUrl && config.supabaseKey) {
-    try { await addMessage('user', text, _activeCid); } catch(e) { console.warn('Save failed:', e); }
+    addMessage('user', text, _activeCid).catch(e => console.warn('Save user msg failed:', e));
   }
 
   try {
@@ -2290,12 +2304,15 @@ async function sendMessage() {
         // User switched away — don't inject into wrong chat, just update list
         incrementUnread(_activeCid);
       }
-      await addMessage('assistant', reply, _activeCid);
+      // ── RELEASE ALL LOCKS IMMEDIATELY after DOM update ──
+      // (v5.6.4: fix lock-leak — addMessage/Supabase must not block lock release)
+      localStorage.removeItem(lockKey); // release cross-tab lock
+      setProcessingChar(_activeCid, false);
+      // Fire-and-forget: background saves (don't block next message)
+      addMessage('assistant', reply, _activeCid).catch(e => console.warn('Save reply failed:', e));
       sendDesktopNotification(reply);
       clearLocalPendingReply(cid); // remove the pending entry we saved earlier
-      localStorage.removeItem(lockKey); // release cross-tab lock
       renderChatList(); // refresh preview + timestamps
-      setProcessingChar(_activeCid, false);
 
     } else {
       // SLOW PATH: Logan is asleep/busy/practicing — store as pending
@@ -2358,14 +2375,24 @@ function appendMessage(who, text, replyRef, isStatus) {
   let mainText = text;
 
   if (isCharMsg) {
-    const actionMatch = text.match(/^\[ACTION:\s*(.+?)\]\s*/i);
+    // Match [ACTION: ...] anywhere in the message, not just ^start
+    const actionMatch = text.match(/\[ACTION:\s*(.+?)\]\s*/i);
     if (actionMatch) {
       actionContent = actionMatch[1].trim();
-      mainText = text.substring(actionMatch[0].length).trim();
+      // Reconstruct: everything before + after the ACTION tag
+      const before = text.substring(0, actionMatch.index).trimEnd();
+      const after = text.substring(actionMatch.index + actionMatch[0].length).trimStart();
+      mainText = (before + ' ' + after).trim();
+    }
+    // ── FACE-TO-FACE TRACKING ──
+    // If this character message has [ACTION:] or *action*, they're with the user.
+    // Save timestamp so getCharacterState skips the sleep roll.
+    if (actionContent || /\*[^*\n]+\*/.test(text)) {
+      localStorage.setItem('lastActionTime_' + who, Date.now().toString());
     }
   }
 
-  // Case: standalone action — [ACTION: ...] with no message text after
+  // Case: standalone action — [ACTION: ...] with no message text around it
   if (actionContent && !mainText) {
     const actRow = document.createElement('div');
     actRow.className = 'msg-row action';
@@ -3060,6 +3087,9 @@ function escapeHtml(text) {
 
 // Format message: parse [song:Title - Artist] and [sticker:NAME]
 function formatMessageContent(text) {
+  // ── SAFETY NET: strip [ACTION: ...] if it leaked through (belt-and-suspenders) ──
+  text = text.replace(/\[ACTION:\s*.+?\]\s*/gi, '');
+  
   // Parse song markers: [song:Title - Artist]
   text = text.replace(/\[song:(.+?)\]/gi, (match, info) => {
     const parts = info.split(' - ');
@@ -3389,10 +3419,16 @@ function appendRestoredMessage(who, text) {
   let mainText = text;
 
   if (isCharMsg) {
-    const actionMatch = text.match(/^\[ACTION:\s*(.+?)\]\s*/i);
+    const actionMatch = text.match(/\[ACTION:\s*(.+?)\]\s*/i);
     if (actionMatch) {
       actionContent = actionMatch[1].trim();
-      mainText = text.substring(actionMatch[0].length).trim();
+      const before = text.substring(0, actionMatch.index).trimEnd();
+      const after = text.substring(actionMatch.index + actionMatch[0].length).trimStart();
+      mainText = (before + ' ' + after).trim();
+    }
+    // ── FACE-TO-FACE TRACKING ──
+    if (actionContent || /\*[^*\n]+\*/.test(text)) {
+      localStorage.setItem('lastActionTime_' + who, Date.now().toString());
     }
   }
 
