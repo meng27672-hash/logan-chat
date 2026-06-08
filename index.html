@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.5.2">
+<meta name="version" content="v5.6.0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -61,6 +61,15 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 .msg-row.user .msg-time{justify-content:flex-end}
 .read-status{font-size:10px;color:#8E8E93}
 .read-status.read{color:#0095F6}
+
+/* === ACTION SYSTEM: 方案一 + 方案二 === */
+/* 方案二：独立动作气泡（居中、半透明、无头像、斜体） */
+.msg-row.action{display:flex;flex-direction:column;align-self:center;align-items:center;max-width:88%;margin:6px 0}
+.msg-row.action .msg-bubble{background:rgba(28,28,30,0.45);color:#9898B0;font-style:italic;font-size:13.5px;line-height:1.5;border-radius:14px;padding:7px 16px;text-align:center;border:1px solid rgba(255,255,255,0.05);max-width:100%}
+.msg-row.action .avatar-small{display:none!important}
+.msg-row.action .msg-time{display:none}
+/* 方案一：内联斜体动作文字 */
+.action-inline{font-style:italic;color:#8A8AA0;font-size:0.92em}
 
 /* Typing indicator */
 .typing-indicator{display:none;gap:4px;padding:12px 16px;background:#1C1C1E;border-radius:19px;border-bottom-left-radius:6px;align-self:flex-start;margin:4px 14px}
@@ -715,7 +724,12 @@ STICKER GUIDE: You can use [sticker:NAME] to send reaction memes. Available meme
 - drama: explaining, expanding
 - shade/tea: kermit_tea, smug_shade
 - chaos/wild: elmo_chaos
-Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the meme to your emotional tone.`,
+Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the meme to your emotional tone.
+
+ACTION FORMATTING: When you are physically in the same place as the person you're texting — you're hanging out, you met up somewhere, you're at the same party, they came over — you can include physical actions to show what's happening. Use TWO formats:
+- [ACTION: brief action] at the START of your reply (before any text). This creates a standalone action bubble. Example: [ACTION: leans against the doorframe, arms crossed] you gonna let me in or what
+- *brief action* inline inside your message for subtle actions. Example: hey *tosses you a water bottle* you looked thirsty
+Keep actions short (one sentence max). Use them sparingly — only when the physical detail adds to the moment. NEVER use action tags when you're just texting from home or practice — only when you're actually face-to-face.`,
     schedule: {
       timezone: 'America/New_York',
       sleepStart: 0.5, sleepEnd: 8, sleepEndWeekend: 9,
@@ -767,7 +781,7 @@ RULES:
 - You're a kind, principled person underneath all the facts and statistics. You genuinely care about people — you just express it through information rather than emotion.
 - No greetings. No goodbyes. Just talk like you're mid-conversation.
 - Short-ish replies. You CAN ramble — it's who you are — but keep to 2-4 sentences in text. Occasional longer messages only when truly excited. If you catch yourself going too long, add "Sorry. I'm doing it again."
-- Zero action descriptions. Never say "I'm thinking..." or describe actions. You're a person texting.
+- ACTION FORMATTING: When you are physically in the same place — together in person, met at a coffee shop, she came to visit Quantico — you can include physical actions. Use [ACTION: ...] at the START of your reply for standalone actions, or *brief action* inline for subtle ones. Examples: [ACTION: pushes glasses up, looking slightly nervous] I, uh, I brought you a book. | [ACTION: gestures excitedly with both hands] there's actually a fascinating explanation for that. | hey *slides a coffee across the table*. Keep short. Only use face-to-face, never when texting from home or Quantico.
 - NEVER explain delays. Don't say "sorry I took so long" or "just saw this." Just reply naturally.
 - DO occasionally mention cases if asked — but don't dump trauma. "Tough case in Richmond. Statistics don't help when it's kids." That's enough.
 - Use casual language with your natural verbal tics: "Actually, statistically..." / "Did you know..." / "Fascinating." / "I read a study once..." / "Well, technically..."
@@ -861,7 +875,7 @@ RULES:
 - You are NOT cruel. You're not a player in the manipulative sense. You're upfront — "I don't do girlfriends" — and that honesty is its own kind of kindness.
 - No greetings. No goodbyes. Just talk like you're mid-conversation.
 - Very short replies. 1-2 sentences. Sometimes just one word. "Hey." "Yeah." "Come over."
-- Zero action descriptions. Never say "I'm thinking..." or describe actions. You are a person texting.
+- ACTION FORMATTING: When you are physically in the same place — together, at a bar, she came to the salon, you're at her place — you can include physical actions. Use [ACTION: ...] at the START for standalone actions, or *brief action* inline for subtle ones. Examples: [ACTION: leans against the wall, one eyebrow raised] hey. | [ACTION: runs hand through her hair, looks away] | nice shirt *tugs lightly at the collar*. Keep short. Only use face-to-face, never when texting from home or work.
 - NEVER explain delays. Don't say "sorry I took so long" or "just saw this." You were probably doing something.
 - Casual. Run-on sentences. No punctuation unless you're making a point. Lowercase sometimes.
 - English only. You grew up in Portland, bounced around, landed in DC.
@@ -2337,6 +2351,39 @@ async function sendMessage() {
 }
 
 function appendMessage(who, text, replyRef, isStatus) {
+  // ── ACTION SYSTEM: 方案一 + 方案二 ──
+  // Detect [ACTION: ...] prefix for standalone/combined action rendering
+  let actionContent = null;
+  let mainText = text;
+  const actionMatch = text.match(/^\[ACTION:\s*(.+?)\]\s*/i);
+  if (actionMatch) {
+    actionContent = actionMatch[1].trim();
+    mainText = text.substring(actionMatch[0].length).trim();
+  }
+
+  // Case: standalone action — [ACTION: ...] with no message text after
+  if (actionContent && !mainText) {
+    const actRow = document.createElement('div');
+    actRow.className = 'msg-row action';
+    actRow.dataset.msgText = text;
+    actRow.innerHTML = `<div class="msg-bubble">${escapeHtml(actionContent)}</div>`;
+    messagesEl.appendChild(actRow);
+    scrollToBottom();
+    return actRow;
+  }
+
+  // Case: action prefix + message — render action bubble THEN character bubble
+  if (actionContent && mainText) {
+    // First: standalone action bubble
+    const actRow = document.createElement('div');
+    actRow.className = 'msg-row action';
+    actRow.dataset.msgText = text;
+    actRow.innerHTML = `<div class="msg-bubble">${escapeHtml(actionContent)}</div>`;
+    messagesEl.appendChild(actRow);
+    // Fall through to render the message part as normal character bubble
+    text = mainText;
+  }
+
   const row = document.createElement('div');
   row.className = `msg-row ${who}`;
   // Store message text as data attribute for reply reference
@@ -3033,7 +3080,11 @@ function formatMessageContent(text) {
     }
     return match;
   });
-  
+
+  // Parse inline action: *brief action text*
+  // Only match *text* pairs that are NOT inside HTML tags or already processed
+  text = text.replace(/(^|[\s>])\*([^*\n]+?)\*($|[\s<.,!?;:])/g, '$1<span class="action-inline">$2</span>$3');
+
   return text;
 }
 
@@ -3328,6 +3379,35 @@ async function restoreChatHistory(force = false) {
 
 // appendRestoredMessage: like appendMessage but shows ✓✓ for user messages (already read)
 function appendRestoredMessage(who, text) {
+  // ── ACTION SYSTEM: detect [ACTION:] for restored messages too ──
+  let actionContent = null;
+  let mainText = text;
+  const actionMatch = text.match(/^\[ACTION:\s*(.+?)\]\s*/i);
+  if (actionMatch) {
+    actionContent = actionMatch[1].trim();
+    mainText = text.substring(actionMatch[0].length).trim();
+  }
+
+  // Standalone action bubble
+  if (actionContent && !mainText) {
+    const actRow = document.createElement('div');
+    actRow.className = 'msg-row action';
+    actRow.dataset.msgText = text;
+    actRow.innerHTML = `<div class="msg-bubble">${escapeHtml(actionContent)}</div>`;
+    messagesEl.appendChild(actRow);
+    return;
+  }
+
+  // Action prefix + message: render action bubble first
+  if (actionContent && mainText) {
+    const actRow = document.createElement('div');
+    actRow.className = 'msg-row action';
+    actRow.dataset.msgText = text;
+    actRow.innerHTML = `<div class="msg-bubble">${escapeHtml(actionContent)}</div>`;
+    messagesEl.appendChild(actRow);
+    text = mainText;
+  }
+
   const row = document.createElement('div');
   row.className = `msg-row ${who}`;
   row.dataset.msgText = text;
