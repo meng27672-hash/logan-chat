@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.6.2">
+<meta name="version" content="v5.6.3">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2221,36 +2221,34 @@ async function sendMessage() {
   }
   localStorage.setItem(lockKey, String(now));
 
-  // ── CRITICAL: all code from here must release lock in try/finally ──
-  let userRow = null, readEl = null;
+  // Check if replying
+  let apiText = text;
+  let replyRef = null;
+  if (replyToMsg) {
+    apiText = `[You are replying to ${replyToMsg.who}'s message: "${replyToMsg.text}"]\nYour reply: ${text}`;
+    replyRef = replyToMsg;
+  }
+
+  // 1. Append user message
+  const userRow = appendMessage('user', text, replyRef);
+  const readEl  = userRow.querySelector('.read-status');
+  inputEl.value = '';
+  toggleSendBtn();
+  scrollToBottom();
+  cancelReply();
+
+  if (readEl) {
+    readEl.textContent = '✓';
+    readEl.classList.remove('read');
+    readEl.dataset.read = 'sent';
+  }
+
+  // Save to Supabase (user message)
+  if (config.supabaseUrl && config.supabaseKey) {
+    try { await addMessage('user', text, _activeCid); } catch(e) { console.warn('Save failed:', e); }
+  }
+
   try {
-    // Check if replying
-    let apiText = text;
-    let replyRef = null;
-    if (replyToMsg) {
-      apiText = `[You are replying to ${replyToMsg.who}'s message: "${replyToMsg.text}"]\nYour reply: ${text}`;
-      replyRef = replyToMsg;
-    }
-
-    // 1. Append user message
-    userRow = appendMessage('user', text, replyRef);
-    readEl  = userRow ? userRow.querySelector('.read-status') : null;
-    inputEl.value = '';
-    toggleSendBtn();
-    scrollToBottom();
-    cancelReply();
-
-    if (readEl) {
-      readEl.textContent = '✓';
-      readEl.classList.remove('read');
-      readEl.dataset.read = 'sent';
-    }
-
-    // Save to Supabase (user message)
-    if (config.supabaseUrl && config.supabaseKey) {
-      try { await addMessage('user', text, _activeCid); } catch(e) { console.warn('Save failed:', e); }
-    }
-
     const range = getCharacterDelay(getActiveCharacterId());
 
     // ═══════════════════════════════════════
@@ -2281,25 +2279,32 @@ async function sendMessage() {
       typingEl.classList.remove('show');
 
       // Call API and show reply
+      // IMPORTANT: use _activeCid (captured at sendMessage start) NOT getActiveCharacterId()
+      // because user may have switched tabs during the setTimeout wait
       const reply = await callLoganAPI(apiText, _activeCid);
+      // Only append to DOM if we're still viewing this character's chat
       if (getActiveCharacterId() === _activeCid &&
           document.getElementById('chatView').classList.contains('active')) {
         appendMessage(_activeCid, reply);
       } else {
+        // User switched away — don't inject into wrong chat, just update list
         incrementUnread(_activeCid);
       }
       await addMessage('assistant', reply, _activeCid);
       sendDesktopNotification(reply);
-      clearLocalPendingReply(cid);
-      renderChatList();
+      clearLocalPendingReply(cid); // remove the pending entry we saved earlier
+      localStorage.removeItem(lockKey); // release cross-tab lock
+      renderChatList(); // refresh preview + timestamps
+      setProcessingChar(_activeCid, false);
 
     } else {
-      // SLOW PATH: asleep/busy — store as pending
+      // SLOW PATH: Logan is asleep/busy/practicing — store as pending
       const delayMin = getRandomDelay(range);
       const scheduledAt = new Date(Date.now() + delayMin).toISOString();
 
       console.log(`[Logan schedule: ${range.label}, pending delay: ${(delayMin/60000).toFixed(0)}min, scheduled: ${scheduledAt}]`);
 
+      // Store in Supabase
       if (config.supabaseUrl && config.supabaseKey) {
         try {
           const body = JSON.stringify({
@@ -2328,22 +2333,20 @@ async function sendMessage() {
           console.warn('[Pending] Store error:', e);
         }
       }
+      localStorage.removeItem(lockKey); // release cross-tab lock
+      setProcessingChar(_activeCid, false);
     }
   } catch(e) {
     typingEl.classList.remove('show');
     console.error('[sendMessage] FAILED:', e);
-    // Show visible error in chat
-    try {
-      const errMsg = document.createElement('div');
-      errMsg.className = 'msg-row logan error-msg';
-      errMsg.innerHTML = `<div class="bubble">⚠️ Send failed: ${e.message || e}</div>`;
-      messagesEl.appendChild(errMsg);
-      scrollToBottom();
-    } catch(e2) { /* can't even render error — bail */ }
-  } finally {
-    // ALWAYS release locks — no matter what error path
+    localStorage.removeItem(lockKey); // release lock on error too
+    // Show visible error in chat so user knows what happened
+    const errMsg = document.createElement('div');
+    errMsg.className = 'msg-row logan error-msg';
+    errMsg.innerHTML = `<div class="bubble">⚠️ API error: ${e.message || e}</div>`;
+    messagesEl.appendChild(errMsg);
+    scrollToBottom();
     setProcessingChar(_activeCid, false);
-    localStorage.removeItem(lockKey);
   }
 }
 
