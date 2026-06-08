@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.6.0">
+<meta name="version" content="v5.6.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2352,13 +2352,17 @@ async function sendMessage() {
 
 function appendMessage(who, text, replyRef, isStatus) {
   // ── ACTION SYSTEM: 方案一 + 方案二 ──
-  // Detect [ACTION: ...] prefix for standalone/combined action rendering
+  // Only apply action detection to character messages, NOT user messages
+  const isCharMsg = (who !== 'user');
   let actionContent = null;
   let mainText = text;
-  const actionMatch = text.match(/^\[ACTION:\s*(.+?)\]\s*/i);
-  if (actionMatch) {
-    actionContent = actionMatch[1].trim();
-    mainText = text.substring(actionMatch[0].length).trim();
+
+  if (isCharMsg) {
+    const actionMatch = text.match(/^\[ACTION:\s*(.+?)\]\s*/i);
+    if (actionMatch) {
+      actionContent = actionMatch[1].trim();
+      mainText = text.substring(actionMatch[0].length).trim();
+    }
   }
 
   // Case: standalone action — [ACTION: ...] with no message text after
@@ -3082,8 +3086,8 @@ function formatMessageContent(text) {
   });
 
   // Parse inline action: *brief action text*
-  // Only match *text* pairs that are NOT inside HTML tags or already processed
-  text = text.replace(/(^|[\s>])\*([^*\n]+?)\*($|[\s<.,!?;:])/g, '$1<span class="action-inline">$2</span>$3');
+  // Simple match — only transforms *text* patterns (won't interfere with HTML)
+  text = text.replace(/\*([^*\n]{1,80}?)\*/g, '<span class="action-inline">$1</span>');
 
   return text;
 }
@@ -3379,13 +3383,17 @@ async function restoreChatHistory(force = false) {
 
 // appendRestoredMessage: like appendMessage but shows ✓✓ for user messages (already read)
 function appendRestoredMessage(who, text) {
-  // ── ACTION SYSTEM: detect [ACTION:] for restored messages too ──
+  // ── ACTION SYSTEM: only for character messages, NOT user messages ──
+  const isCharMsg = (who !== 'user');
   let actionContent = null;
   let mainText = text;
-  const actionMatch = text.match(/^\[ACTION:\s*(.+?)\]\s*/i);
-  if (actionMatch) {
-    actionContent = actionMatch[1].trim();
-    mainText = text.substring(actionMatch[0].length).trim();
+
+  if (isCharMsg) {
+    const actionMatch = text.match(/^\[ACTION:\s*(.+?)\]\s*/i);
+    if (actionMatch) {
+      actionContent = actionMatch[1].trim();
+      mainText = text.substring(actionMatch[0].length).trim();
+    }
   }
 
   // Standalone action bubble
@@ -3415,7 +3423,7 @@ function appendRestoredMessage(who, text) {
   const readHtml = who === 'user'
     ? `<span class="read-status read">✓✓</span>`
     : '';
-  const isCharMsg = (who !== 'user'); // any non-user role = character avatar
+  // isCharMsg declared at top of function — reuse, not redeclare
   const avatarSrc = isCharMsg ? getCharAvatarSrc() : '';
   const userAvatarSrc = (who === 'user' && localStorage.getItem('userAvatar')) ? localStorage.getItem('userAvatar') : '';
   const avatarHtml = isCharMsg
