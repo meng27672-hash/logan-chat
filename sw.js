@@ -2,7 +2,7 @@
 // Enables PWA install + Web Push notifications
 // v6: Robust install — only precache critical files, meme files cached on-demand
 
-const CACHE_NAME = 'logan-chat-v8';
+const CACHE_NAME = 'logan-chat-v9';
 const BASE = '/logan-chat/';
 
 // Only precache the absolute minimum needed for PWA install + offline shell
@@ -35,16 +35,22 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate - clean old caches
+// Activate - clean old caches + notify clients to auto-reload
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
       );
+    }).then(() => self.clients.claim()).then(() => {
+      // Notify all open tabs to reload so they pick up the new version
+      return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'NEW_VERSION_AVAILABLE' });
+        });
+      });
     })
   );
-  self.clients.claim();
 });
 
 // Fetch - Network First, cache fallback
