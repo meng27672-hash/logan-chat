@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.7.5">
+<meta name="version" content="v5.7.6">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3541,6 +3541,14 @@ async function registerSW() {
           console.log('New SW available — will activate on reload');
         }
       });
+    });
+
+    // Auto-reload when SW signals a new version is ready
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'NEW_VERSION_AVAILABLE') {
+        console.log('New version detected by SW — auto-refreshing...');
+        window.location.reload();
+      }
     });
     
     // After SW registered, subscribe to push if notifications enabled
