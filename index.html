@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.7.8">
+<meta name="version" content="v5.7.9">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -987,7 +987,7 @@ function goBackToList() {
   renderChatList();
 }
 
-function openChat(characterId) {
+async function openChat(characterId) {
   setActiveCharacterId(characterId);
   const char = getActiveCharacter();
   const chatView = document.getElementById('chatView');
@@ -1031,7 +1031,7 @@ function openChat(characterId) {
   toggleSendBtn();
   
   // Restore this character's history (will show welcome if no history)
-  restoreChatHistory(true);
+  await restoreChatHistory(true);
   
   // Clear unread badge for this character
   clearUnread(characterId);
@@ -1223,19 +1223,26 @@ async function sbInsert(role, content, cid) {
   // Normalize role: 'logan' → 'assistant' for Supabase storage
   const normRole = role === 'logan' ? 'assistant' : role;
   try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
     await fetch(`${config.supabaseUrl}/rest/v1/chat_memory`, {
       method: 'POST',
       headers: supabaseHeaders(),
-      body: JSON.stringify({ session_id: getSessionId(cid), role: normRole, content })
+      body: JSON.stringify({ session_id: getSessionId(cid), role: normRole, content }),
+      signal: ctrl.signal
     });
-  } catch(e) { console.warn('Supabase insert failed:', e); }
+    clearTimeout(t);
+  } catch(e) { console.warn('Supabase insert failed:', e.name || e); }
 }
 
 async function sbFetchHistory(limit = MAX_CONTEXT, cid) {
   if (!config.supabaseUrl || !config.supabaseKey) return null;
   try {
     const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(cid)}&order=created_at.desc&limit=${limit}&select=role,content`;
-    const resp = await fetch(url, { headers: supabaseHeaders() });
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const resp = await fetch(url, { headers: supabaseHeaders(), signal: ctrl.signal });
+    clearTimeout(t);
     if (!resp.ok) return null;
     const rows = await resp.json();
     // reverse to get oldest→newest
@@ -1243,7 +1250,7 @@ async function sbFetchHistory(limit = MAX_CONTEXT, cid) {
       role: r.role === 'logan' ? 'assistant' : r.role,
       content: r.content
     }));
-  } catch(e) { console.warn('Supabase fetch failed:', e); return null; }
+  } catch(e) { console.warn('Supabase fetch failed:', e.name || e); return null; }
 }
 
 // Fetch ALL history with timestamps for memory decay search
@@ -1252,14 +1259,17 @@ async function sbFetchAllWithTimestamps(cid) {
   try {
     // Fetch up to 500 messages with timestamps
     const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(cid)}&order=created_at.desc&limit=500&select=role,content,created_at`;
-    const resp = await fetch(url, { headers: supabaseHeaders() });
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const resp = await fetch(url, { headers: supabaseHeaders(), signal: ctrl.signal });
+    clearTimeout(t);
     if (!resp.ok) return null;
     const rows = await resp.json();
     return rows.map(r => ({
       ...r,
       role: r.role === 'logan' ? 'assistant' : r.role
     })).reverse(); // oldest→newest
-  } catch(e) { console.warn('Supabase fetch all failed:', e); return null; }
+  } catch(e) { console.warn('Supabase fetch all failed:', e.name || e); return null; }
 }
 
 // Extract keywords from user message (simple tokenizer)
@@ -1369,11 +1379,15 @@ function buildMemoryContext(memoryData) {
 async function sbClearHistory(cid) {
   if (!config.supabaseUrl || !config.supabaseKey) return;
   try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
     await fetch(`${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(cid)}`, {
       method: 'DELETE',
-      headers: supabaseHeaders()
+      headers: supabaseHeaders(),
+      signal: ctrl.signal
     });
-  } catch(e) { console.warn('Supabase delete failed:', e); }
+    clearTimeout(t);
+  } catch(e) { console.warn('Supabase delete failed:', e.name || e); }
 }
 
 // ============================================================
@@ -1682,6 +1696,8 @@ async function callLoganAPI(userMessage, cid) {
   ];
 
   // ── Parallel: local API (fast) + Edge Function (for push notification) ──
+  const apiCtrl = new AbortController();
+  const apiTimeout = setTimeout(() => apiCtrl.abort(), 30000); // 30s for AI response
   const localPromise = fetch(apiUrl, {
     method: 'POST',
     headers: {
@@ -1693,12 +1709,18 @@ async function callLoganAPI(userMessage, cid) {
       messages: messages,
       temperature: 0.85,
       max_tokens: 200
-    })
-  }).then(r => r.json());
+    }),
+    signal: apiCtrl.signal
+  }).then(r => {
+    clearTimeout(apiTimeout);
+    return r.json();
+  });
 
   // Edge Function call — passes session_id so Edge Function can find push subscription
   let edgePromise = null;
   if (config.edgeFunctionUrl) {
+    const edgeCtrl = new AbortController();
+    const edgeTimeout = setTimeout(() => edgeCtrl.abort(), 10000);
     edgePromise = fetch(config.edgeFunctionUrl, {
       method: 'POST',
       headers: {
@@ -1709,9 +1731,13 @@ async function callLoganAPI(userMessage, cid) {
         message: userMessage,
         history: recentMessages.slice(-20),
         session_id: getSessionId(cid)
-      })
-    }).then(r => r.json()).catch(e => {
-      console.warn('Edge Function call failed (non-critical):', e);
+      }),
+      signal: edgeCtrl.signal
+    }).then(r => {
+      clearTimeout(edgeTimeout);
+      return r.json();
+    }).catch(e => {
+      console.warn('Edge Function call failed (non-critical):', e.name || e);
       return null;
     });
   }
@@ -2081,7 +2107,10 @@ async function pollPendingReplies() {
       if (unprocessed.length === 0) { isPolling = false; return; }
       const ids = unprocessed.join(',');
       const url = `${config.supabaseUrl}/rest/v1/pending_replies?id=in.(${ids})&status=eq.completed&select=id,status,reply,session_id`;
-      const resp = await fetch(url, { headers: supabaseHeaders() });
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 5000);
+      const resp = await fetch(url, { headers: supabaseHeaders(), signal: ctrl.signal });
+      clearTimeout(t);
       const data = await resp.json();
 
     if (data && data.length > 0) {
@@ -2154,7 +2183,10 @@ async function recoverPendingReplies() {
       // Query ALL character session_ids (not just 'default')
       const sidFilter = ['default_logan','default_spencer','default_shane'].map(s => 'session_id=eq.'+s).join('&or=');
       const doneUrl = `${config.supabaseUrl}/rest/v1/pending_replies?or=(${encodeURIComponent(sidFilter)})&status=eq.completed&select=id&limit=100`;
-      const doneResp = await fetch(doneUrl, { headers: supabaseHeaders() });
+      const ctrlDone = new AbortController();
+      const tDone = setTimeout(() => ctrlDone.abort(), 5000);
+      const doneResp = await fetch(doneUrl, { headers: supabaseHeaders(), signal: ctrlDone.signal });
+      clearTimeout(tDone);
       if (doneResp.ok) {
         const doneRows = await doneResp.json();
         for (const row of doneRows) {
@@ -2168,7 +2200,10 @@ async function recoverPendingReplies() {
     // Second: recover still-pending replies (check all character session_ids)
     const sidFilter2 = ['default_logan','default_spencer','default_shane'].map(s => 'session_id=eq.'+s).join('&or=');
     const url = `${config.supabaseUrl}/rest/v1/pending_replies?or=(${encodeURIComponent(sidFilter2)})&status=eq.pending&select=id`;
-    const resp = await fetch(url, { headers: supabaseHeaders() });
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const resp = await fetch(url, { headers: supabaseHeaders(), signal: ctrl.signal });
+    clearTimeout(t);
     if (!resp.ok) return;
     const rows = await resp.json();
     if (rows && rows.length > 0) {
@@ -2331,11 +2366,15 @@ async function sendMessage() {
             scheduled_at: scheduledAt,
             status: 'pending'
           });
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 5000);
           const resp = await fetch(`${config.supabaseUrl}/rest/v1/pending_replies?select=id`, {
             method: 'POST',
             headers: { ...supabaseHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-            body
+            body,
+            signal: ctrl.signal
           });
+          clearTimeout(t);
           const result = await resp.json();
 
           if (result && result.length > 0 && result[0].id) {
@@ -3321,7 +3360,11 @@ async function restoreChatHistory(force = false) {
   if (config.supabaseUrl && config.supabaseKey) {
     const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(_restoreCid)}&order=created_at.asc&limit=200&select=role,content`;
     try {
-      const resp = await fetch(url, { headers: supabaseHeaders() });
+      // AbortController timeout: 5s — if Supabase is slow/down, fallback to localStorage fast
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 5000);
+      const resp = await fetch(url, { headers: supabaseHeaders(), signal: ctrl.signal });
+      clearTimeout(timeout);
       if (resp.ok) {
         cloudOk = true;
         const rows = await resp.json();
@@ -3330,9 +3373,13 @@ async function restoreChatHistory(force = false) {
           // Update badge with count
           try {
             const countUrl = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(_restoreCid)}&select=id`;
+            const ctrl2 = new AbortController();
+            const timeout2 = setTimeout(() => ctrl2.abort(), 3000);
             const r = await fetch(countUrl, {
-              headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' }
+              headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' },
+              signal: ctrl2.signal
             });
+            clearTimeout(timeout2);
             const count = r.headers.get('content-range')?.split('/')[1] || rows.length;
             updateMemoryBadge(count, true);
           } catch(e) { updateMemoryBadge(rows.length, true); }
@@ -3341,7 +3388,10 @@ async function restoreChatHistory(force = false) {
         cloudError = resp.status;
         console.warn(`Cloud sync: HTTP ${resp.status} — table may be missing`);
       }
-    } catch(e) { cloudError = 'network'; console.warn('Restore from Supabase failed:', e); }
+    } catch(e) {
+      cloudError = e.name === 'AbortError' ? 'timeout' : 'network';
+      console.warn('Restore from Supabase failed:', e.name || e);
+    }
   } // end if (config.supabaseUrl)
   _cloudAvailable = cloudOk;
   // Fallback to local
@@ -3608,6 +3658,8 @@ function urlBase64ToUint8Array(base64String) {
 async function savePushSubscription(sub) {
   if (!config.supabaseUrl || !config.supabaseKey) return;
   try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
     // Save full subscription as JSONB (matching push_subscriptions table schema)
     await fetch(`${config.supabaseUrl}/rest/v1/push_subscriptions`, {
       method: 'POST',
@@ -3622,10 +3674,12 @@ async function savePushSubscription(sub) {
           keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth }
         },
         updated_at: new Date().toISOString()
-      })
+      }),
+      signal: ctrl.signal
     });
+    clearTimeout(t);
   } catch(e) {
-    console.warn('Save push subscription failed:', e);
+    console.warn('Save push subscription failed:', e.name || e);
   }
 }
 
