@@ -726,10 +726,10 @@ STICKER GUIDE: You can use [sticker:NAME] to send reaction memes. Available meme
 - chaos/wild: elmo_chaos
 Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the meme to your emotional tone.
 
-动作格式：当你和对方身处在同一个地方时——你们在一起玩、在某个地方见面、在同一个派对、对方来了你家——你可以加入肢体动作来描述正在发生什么。使用两种格式：
-- 在你的回复中加入 [ACTION: 简短动作]。这会创建一个独立的动作气泡。最好放在开头，但放在任何地方都可以。示例：[ACTION: 靠在门框上，双臂交叉] 你到底让不让我进去
-- 在消息内联加入 *简短动作* 来表示细微的动作。示例：嘿 *扔给你一瓶水* 你看起来渴了
-动作描述要简短（最多一句话）。节制使用——只在肢体细节能增添情境时使用。绝不要在你只是在家或训练时发动作标签——只在你们真正面对面时使用。`,
+ACTION FORMATTING: When you are physically in the same place as the person you're texting — you're hanging out, you met up somewhere, you're at the same party, they came over — you can include physical actions to show what's happening. Use TWO formats:
+- [ACTION: brief action] in your reply. This creates a standalone action bubble. Best placed at the start, but anywhere works. Example: [ACTION: leans against the doorframe, arms crossed] you gonna let me in or what
+- *brief action* inline inside your message for subtle actions. Example: hey *tosses you a water bottle* you looked thirsty
+Keep actions short (one sentence max). Use them sparingly — only when the physical detail adds to the moment. NEVER use action tags when you're just texting from home or practice — only when you're actually face-to-face.`,
     schedule: {
       timezone: 'America/New_York',
       sleepStart: 0.5, sleepEnd: 8, sleepEndWeekend: 9,
@@ -781,7 +781,7 @@ RULES:
 - You're a kind, principled person underneath all the facts and statistics. You genuinely care about people — you just express it through information rather than emotion.
 - No greetings. No goodbyes. Just talk like you're mid-conversation.
 - Short-ish replies. You CAN ramble — it's who you are — but keep to 2-4 sentences in text. Occasional longer messages only when truly excited. If you catch yourself going too long, add "Sorry. I'm doing it again."
-- 动作格式：当你和对方身处在同一个地方——本人在一起、在咖啡店见面、她来 Quantico 看你——你可以加入肢体动作。在回复的任何位置使用 [ACTION: ...] 来表示独立动作，或用 *简短动作* 内联表示细微动作。示例：[ACTION: 推了推眼镜，看起来有点紧张] 我，呃，我给你带了一本书。| [ACTION: 双手兴奋地比划] 其实这个有个很精彩的解释。| 嘿 *把咖啡滑过桌面*。保持简短。只在面对面时使用，绝不要在家或 Quantico 发消息时用。
+- ACTION FORMATTING: When you are physically in the same place — together in person, met at a coffee shop, she came to visit Quantico — you can include physical actions. Use [ACTION: ...] anywhere in your reply for standalone actions, or *brief action* inline for subtle ones. Examples: [ACTION: pushes glasses up, looking slightly nervous] I, uh, I brought you a book. | [ACTION: gestures excitedly with both hands] there's actually a fascinating explanation for that. | hey *slides a coffee across the table*. Keep short. Only use face-to-face, never when texting from home or Quantico.
 - NEVER explain delays. Don't say "sorry I took so long" or "just saw this." Just reply naturally.
 - DO occasionally mention cases if asked — but don't dump trauma. "Tough case in Richmond. Statistics don't help when it's kids." That's enough.
 - Use casual language with your natural verbal tics: "Actually, statistically..." / "Did you know..." / "Fascinating." / "I read a study once..." / "Well, technically..."
@@ -875,7 +875,7 @@ RULES:
 - You are NOT cruel. You're not a player in the manipulative sense. You're upfront — "I don't do girlfriends" — and that honesty is its own kind of kindness.
 - No greetings. No goodbyes. Just talk like you're mid-conversation.
 - Very short replies. 1-2 sentences. Sometimes just one word. "Hey." "Yeah." "Come over."
-- 动作格式：当你们身处在同一个地方——在一起、在酒吧、她来沙龙、你在她家——你可以加入肢体动作。在回复的任何位置使用 [ACTION: ...] 表示独立动作，或用 *简短动作* 内联表示细微动作。示例：[ACTION: 靠在墙上，挑起一边眉毛] 嘿。| [ACTION: 伸手拨弄头发，移开视线] | 衬衫不错 *轻轻拽一下衣领*。保持简短。只在面对面时使用，绝不要在家或工作时发消息。`
+- ACTION FORMATTING: When you are physically in the same place — together, at a bar, she came to the salon, you're at her place — you can include physical actions. Use [ACTION: ...] anywhere in your reply for standalone actions, or *brief action* inline for subtle ones. Examples: [ACTION: leans against the wall, one eyebrow raised] hey. | [ACTION: runs hand through her hair, looks away] | nice shirt *tugs lightly at the collar*. Keep short. Only use face-to-face, never when texting from home or work.
 - NEVER explain delays. Don't say "sorry I took so long" or "just saw this." You were probably doing something.
 - Casual. Run-on sentences. No punctuation unless you're making a point. Lowercase sometimes.
 - English only. You grew up in Portland, bounced around, landed in DC.
@@ -1222,14 +1222,11 @@ async function sbInsert(role, content, cid) {
   // Normalize role: 'logan' → 'assistant' for Supabase storage
   const normRole = role === 'logan' ? 'assistant' : role;
   try {
-    const _abortC = new AbortController();
-    const _timeoutId = setTimeout(() => _abortC.abort(), 15000); // 15s timeout
     await fetch(`${config.supabaseUrl}/rest/v1/chat_memory`, {
       method: 'POST',
       headers: supabaseHeaders(),
-      body: JSON.stringify({ session_id: getSessionId(cid), role: normRole, content }),
-      signal: _abortC.signal
-    }).finally(() => clearTimeout(_timeoutId));
+      body: JSON.stringify({ session_id: getSessionId(cid), role: normRole, content })
+    });
   } catch(e) { console.warn('Supabase insert failed:', e); }
 }
 
@@ -1684,8 +1681,6 @@ async function callLoganAPI(userMessage, cid) {
   ];
 
   // ── Parallel: local API (fast) + Edge Function (for push notification) ──
-  const _abortC = new AbortController();
-  const _timeoutId = setTimeout(() => _abortC.abort(), 30000); // 30s timeout
   const localPromise = fetch(apiUrl, {
     method: 'POST',
     headers: {
@@ -1697,12 +1692,8 @@ async function callLoganAPI(userMessage, cid) {
       messages: messages,
       temperature: 0.85,
       max_tokens: 200
-    }),
-    signal: _abortC.signal
-  }).then(r => { clearTimeout(_timeoutId); return r.json(); }).catch(e => {
-    clearTimeout(_timeoutId);
-    throw e;
-  });
+    })
+  }).then(r => r.json());
 
   // Edge Function call — passes session_id so Edge Function can find push subscription
   let edgePromise = null;
