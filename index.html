@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.8.1">
+<meta name="version" content="v5.8.2">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2480,6 +2480,8 @@ function isInFaceToFaceMode(cid) {
 }
 
 function sanitizeCharacterReply(cid, text) {
+  // Safety net: if anything goes wrong in sanitizer, return original text
+  try {
   if (!text || typeof text !== 'string') return text;
 
   // Only sanitize character messages, never user messages
@@ -2542,6 +2544,10 @@ function sanitizeCharacterReply(cid, text) {
 
   // Face-to-face mode: allow actions, but still clean up formatting
   return text;
+  } catch(e) {
+    console.warn('[Sanitizer] Error — returning original text:', e.message);
+    return text;
+  }
 }
 
 
@@ -3324,13 +3330,15 @@ function formatMessageContent(text) {
   };
 
   // Match [emoji_code] pattern and convert — exclude colon-formats ([song:], [sticker:], [ACTION:])
-  text = text.replace(/\[([a-z0-9_]+)\](?!\s*:)/gi, (match, code) => {
-    const lower = code.toLowerCase().trim();
-    if (EMOJI_MAP[lower]) {
-      return EMOJI_MAP[lower];
-    }
-    return match; // Unknown shortcode, leave as-is
-  });
+  try {
+    text = text.replace(/\[([a-z0-9_]+)\](?!\s*:)/gi, (match, code) => {
+      const lower = code.toLowerCase().trim();
+      if (EMOJI_MAP[lower]) {
+        return EMOJI_MAP[lower];
+      }
+      return match; // Unknown shortcode, leave as-is
+    });
+  } catch(e) { /* emoji conversion is best-effort */ }
 
   // Parse song markers: [song:Title - Artist]
   text = text.replace(/\[song:(.+?)\]/gi, (match, info) => {
