@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.8.0">
+<meta name="version" content="v5.8.1">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -746,7 +746,13 @@ Rules: Use memes naturally (every 5-8 messages). Only ONE per reply. Match the m
 
 🔴🔴🔴 最终提醒：你的回复必须100%是简体中文。不要用英文。不管聊什么话题，都用中文。🔴🔴🔴
 
-保持动作极简（一句话以内）。记住：90%的回复应该是纯文字，只有10%的场景才需要动作。`,
+保持动作极简（一句话以内）。记住：90%的回复应该是纯文字，只有10%的场景才需要动作。
+
+⚠️ 严禁事项（违反会导致你的消息被系统过滤）：
+- 绝对不要在普通短信回复中写第三人称动作叙述（如"她靠在门框上""他笑了笑"等）
+- 绝对不要用小说/剧本式的旁白描写
+- 如果不是面对面场景，你的回复应该100%是对话文字，零动作描写
+- 可以使用 emoji 短代码表达情绪：[heart_eyes] 😍 [giggle] 😆 [wink] 😉 [smirk] 😏 [cool] 😎 [fire] 🔥,
     schedule: {
       timezone: 'America/New_York',
       sleepStart: 0.5, sleepEnd: 8, sleepEndWeekend: 9,
@@ -811,6 +817,7 @@ RULES:
 ❌ 你在家、在Quantico、在办案——任何非见面场合
 
 满足条件时可用：[ACTION: 简短动作] 或 *细微动作*。保持极简。90%的回复纯文字，只有面对面场景才加动作。
+⚠️ 严禁：不要在短信中写第三人称动作叙述（如"他推了推眼镜"）。非面对面时100%对话文字，零动作描写。可以用 emoji：[heart_eyes] [giggle] [wink] [smirk] [cool] [fire]
 - NEVER explain delays. Don't say "sorry I took so long" or "just saw this." Just reply naturally.
 - DO occasionally mention cases if asked — but don't dump trauma. "Tough case in Richmond. Statistics don't help when it's kids." That's enough.
 - Use casual language with your natural verbal tics: "Actually, statistically..." / "Did you know..." / "Fascinating." / "I read a study once..." / "Well, technically..."
@@ -921,6 +928,7 @@ RULES:
 ❌ 你独自在家、在沙龙工作、在路上——任何非见面场合
 
 满足条件时可用：[ACTION: 简短动作] 或 *细微动作*。保持极简（一句话）。90%纯文字，只有真正面对面才加。
+⚠️ 严禁：不要在短信中写第三人称动作叙述（如"她靠在墙上"）。非面对面时100%对话文字，零动作描写。可以用 emoji：[heart_eyes] [giggle] [wink] [smirk] [cool] [fire]
 - NEVER explain delays. Don't say "sorry I took so long" or "just saw this." You were probably doing something.
 - Casual. Run-on sentences. No punctuation unless you're making a point. Lowercase sometimes.
 - 🔴 语言：你必须始终用简体中文回复。你的所有消息必须是中文。不管对方用什么语言，你都用中文回复。这是最高优先级规则，不可违反。
@@ -2093,7 +2101,7 @@ async function deliverPendingReply(pending) {
   const reply = await callLoganAPI(pending.apiText, cid);
   
   if (isChatOpen) {
-    appendMessage(cid, reply);
+    appendMessage(cid, sanitizeCharacterReply(cid, reply));
   }
   await addMessage('assistant', reply, cid);
   if (!isChatOpen) {
@@ -2195,7 +2203,7 @@ async function pollPendingReplies() {
           scrollToBottom();
           await new Promise(r => setTimeout(r, 1500 + Math.random() * 1500));
           typingEl.classList.remove('show');
-          appendMessage(pendingCid, item.reply);
+          appendMessage(pendingCid, sanitizeCharacterReply(pendingCid, item.reply));
         }
         await addMessage('assistant', item.reply, pendingCid);
 
@@ -2384,7 +2392,7 @@ async function sendMessage() {
       // Only append to DOM if we're still viewing this character's chat
       if (getActiveCharacterId() === _activeCid &&
           document.getElementById('chatView').classList.contains('active')) {
-        appendMessage(_activeCid, reply);
+        appendMessage(_activeCid, sanitizeCharacterReply(_activeCid, reply));
       } else {
         // User switched away — don't inject into wrong chat, just update list
         incrementUnread(_activeCid);
@@ -2455,6 +2463,87 @@ async function sendMessage() {
     setProcessingChar(_activeCid, false);
   }
 }
+
+// ============================================================
+// ACTION SANITIZER — code-level enforcement (v5.8.1)
+// ============================================================
+// Don't trust the LLM to follow prompt instructions about when to use actions.
+// This function strips ALL action content when NOT in face-to-face mode.
+
+function isInFaceToFaceMode(cid) {
+  const lastActionTime = parseInt(localStorage.getItem('lastActionTime_' + cid)) || 0;
+  const faceToFaceWindow = 30 * 60 * 1000; // 30 min — must match getCharacterState
+  if (lastActionTime && (Date.now() - lastActionTime) < faceToFaceWindow) {
+    return true;
+  }
+  return false;
+}
+
+function sanitizeCharacterReply(cid, text) {
+  if (!text || typeof text !== 'string') return text;
+
+  // Only sanitize character messages, never user messages
+  if (cid === 'user') return text;
+
+  const f2f = isInFaceToFaceMode(cid);
+
+  if (!f2f) {
+    // ═══════════ NOT face-to-face: STRIP ALL ACTION CONTENT ═══════════
+    let cleaned = text;
+
+    // 1. Remove [ACTION: ...] tags (with or without content after)
+    cleaned = cleaned.replace(/\[ACTION:\s*.+?\]\s*/gi, '');
+
+    // 2. Remove *inline action* text (asterisk-wrapped)
+    cleaned = cleaned.replace(/\*[^*\n]{1,80}?\*/g, '');
+
+    // 3. Remove timestamp-action pattern like [8:47 PM] at start of line
+    cleaned = cleaned.replace(/^\s*\[\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)\]\s*/gi, '');
+
+    // 4. Detect and strip pure third-person action narration (the "她站在门口..." problem)
+    // Pattern: Chinese text that reads like a novel narrator describing physical actions
+    // Heuristics: contains third-person pronouns (她/他) + physical action verbs + no dialogue markers
+    const thirdPersonPatterns = [
+      /^(?:她|他|Shane|Logan|Spencer)(?:站|坐|躺|靠|走|转|看|盯|瞄|瞥|望|歪|垂|抬|伸|拿|放|摸|拨|拽|撩|咬|舔|笑|叹|皱|眯|眨|闭|张|开|点|摇|耸|摊|抱|靠|倚|趴|跨|退|进|出|回)/,
+      /^(?:她|他|这?个?(?:女孩|女人|家伙|人))(?:把|被|让|在|往|朝|向)/,
+      /(?:夜风|阳光|灯光|月光|阴影|影子|头发|手指|嘴角|眼|眉|头|肩|背|胸|腰|腿)(?:吹|照|洒|落|扫|掠|动|扬|皱|挑|抽|移|转)/,
+      /^(?:没|就|便|才|却|而).{0,4}(?:站|坐|靠|走|看|说|问|答|回|转|进|出)/,
+    ];
+
+    // Check if the entire message is just action narration (no actual dialogue)
+    const lines = cleaned.split('\n').filter(l => l.trim());
+    if (lines.length <= 2) { // Short messages are easier to classify
+      const joined = lines.join(' ').trim();
+      // If it's a short message matching narration patterns → replace with minimal response
+      const isPureNarration = thirdPersonPatterns.some(p => p.test(joined)) &&
+        !/[。？！？!]\s*[「"『]/.test(joined) && // No dialogue opening after punctuation
+        !/^[\[（(]/.test(cleaned) && // Not starting with bracket/paren (might be [ACTION] we missed)
+        joined.length > 10; // Not too short (avoid false positives on short replies)
+
+      if (isPureNarration && !/[?!？！]/.test(joined.substring(joined.length - 5))) {
+        // Pure narration ending without question/exclamation — likely pure action description
+        console.log(`[Sanitizer] Stripped pure action narration for ${cid}:`, joined.slice(0, 60));
+        // Return empty-ish to signal "this was all action"
+        return cleaned.replace(/^[\s\S]+$/, '…'); // Replace with ellipsis
+      }
+    }
+
+    // Clean up any double spaces or leading/trailing whitespace from stripping
+    cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+
+    // If nothing left after stripping, return a subtle placeholder
+    if (!cleaned || cleaned.length < 2) {
+      console.log(`[Sanitizer] Message for ${cid} was entirely action content`);
+      return '…';
+    }
+
+    return cleaned;
+  }
+
+  // Face-to-face mode: allow actions, but still clean up formatting
+  return text;
+}
+
 
 function appendMessage(who, text, replyRef, isStatus) {
   // ── ACTION SYSTEM: 方案一 + 方案二 ──
@@ -3178,7 +3267,71 @@ function escapeHtml(text) {
 function formatMessageContent(text) {
   // ── SAFETY NET: strip [ACTION: ...] if it leaked through (belt-and-suspenders) ──
   text = text.replace(/\[ACTION:\s*.+?\]\s*/gi, '');
-  
+
+  // ── EMOJI SHORTCODE CONVERSION (v5.8.1) ──
+  // Convert [emoji_name] patterns → real Unicode emojis
+  const EMOJI_MAP = {
+    // Face / emotion
+    'heart_eyes': '😍', 'hearteyes': '😍', 'smiling_face_with_heart_eyes': '😍',
+    'giggle': '😆', 'laughing': '😂', 'joy': '😂', 'grin': '😁',
+    'wink': '😉', 'smirk': '😏', 'side_smile': '😏',
+    'blush': '😊', 'smile': '🙂', 'happy': '😄', 'grinning': '😀',
+    'kiss': '😘', 'kissing_heart': '😘',
+    'sad': '😢', 'cry': '😭', 'sob': '😭',
+    'angry': '😠', 'rage': '😡', 'pout': '😤',
+    'think': '🤔', 'thinking_face': '🤔',
+    'eye_roll': '🙄', 'rolling_eyes': '🙄',
+    'shy': '😳', 'flushed': '😳',
+    'surprised': '😲', 'astonished': '😲',
+    'cool': '😎', 'sunglasses': '😎',
+    'neutral': '😐', 'expressionless': '😐',
+    'sleepy': '😪', 'sleeping': '😴',
+    'unamused': '😒', 'slight_frown': '😒',
+
+    // Love / heart
+    'heart': '❤️', 'red_heart': '❤️', 'love': '❤️',
+    'sparkles': '✨', 'sparkle': '✨',
+    'fire': '🔥', 'lit': '🔥',
+    'star': '⭐', 'stars': '🌟',
+
+    // Gestures / actions
+    'thumbs_up': '👍', 'thumbsup': '👍', '+1': '👍',
+    'thumbs_down': '👎', 'thumbsdown': '👎', '-1': '👎',
+    'wave': '👋', 'hello': '👋',
+    'ok_hand': '👌', 'ok': '👌',
+    'peace': '✌️', 'victory': '✌️',
+    'middle_finger': '🖕', 'flip': '🖕',
+    'shrug': '🤷', 'idk': '🤷',
+    'facepalm': '🤦', 'face_palm': '🤦',
+    'clap': '👏',
+    'pray': '🙏',
+    'point': '👉', 'finger_right': '👉',
+
+    // People / reactions
+    'lol': '😂', 'lmao': '💀', 'dead': '💀', 'skull': '💀',
+    'sweat': '😅', 'nervous': '😅',
+    'whisper': '🤫', 'shh': '🤫',
+    'sigh': '😔',
+    'eyeroll': '🙄',
+    'tear': '😢', 'teary': '🥺', 'puppy_eyes': '🥺',
+    ' smirk': '😏', 'smirking': '😏',
+    'innocent': '😇', 'angel': '😇',
+    'devil': '😈', 'imp': '😈',
+    'clown': '🤡',
+    'monkey': '🐵', 'see_no_evil': '🙈',
+    'party': '🎉', 'popper': '🎉',
+    'hundred': '💯', '100': '💯',
+  };
+
+  // Match [emoji_code] pattern and convert — exclude colon-formats ([song:], [sticker:], [ACTION:])
+  text = text.replace(/\[([a-z0-9_]+)\](?!\s*:)/gi, (match, code) => {
+    const lower = code.toLowerCase().trim();
+    if (EMOJI_MAP[lower]) {
+      return EMOJI_MAP[lower];
+    }
+    return match; // Unknown shortcode, leave as-is
+  });
+
   // Parse song markers: [song:Title - Artist]
   text = text.replace(/\[song:(.+?)\]/gi, (match, info) => {
     const parts = info.split(' - ');
@@ -3381,7 +3534,7 @@ async function triggerLoganReply(contextNote) {
     const reply = data.choices?.[0]?.message?.content?.trim() || "Yeah.";
 
     typingEl.style.display = 'none';
-    appendMessage(activeCid, reply); // use active character, NOT hardcoded 'logan'
+    appendMessage(activeCid, sanitizeCharacterReply(activeCid, reply)); // use active character, NOT hardcoded 'logan'
     await addMessage('assistant', reply, activeCid);
     sendDesktopNotification(reply);
   } catch(e) {
@@ -3525,6 +3678,11 @@ async function restoreChatHistory(force = false) {
 
 // appendRestoredMessage: like appendMessage but shows ✓✓ for user messages (already read)
 function appendRestoredMessage(who, text) {
+  // ── SANITIZER: strip action content when NOT in face-to-face mode (v5.8.1) ──
+  if (who !== 'user') {
+    text = sanitizeCharacterReply(who, text);
+  }
+
   // ── ACTION SYSTEM: only for character messages, NOT user messages ──
   const isCharMsg = (who !== 'user');
   let actionContent = null;
@@ -3860,7 +4018,7 @@ function setupInputFocusScroll() {
               scrollToBottom();
               await new Promise(r => setTimeout(r, 1200 + Math.random() * 1500));
               typingEl.classList.remove('show');
-              appendMessage(cid, reply);
+              appendMessage(cid, sanitizeCharacterReply(cid, reply));
             } else {
               incrementUnread(cid);
             }
@@ -4022,7 +4180,7 @@ async function checkProactiveForChar(cid) {
         scrollToBottom();
         await new Promise(r => setTimeout(r, 1200 + Math.random() * 1500));
         typingEl.classList.remove('show');
-        appendMessage(cid, reply);
+        appendMessage(cid, sanitizeCharacterReply(cid, reply));
       } else {
         // Not in this chat — bump the unread badge
         incrementUnread(cid);
