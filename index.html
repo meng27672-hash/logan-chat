@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.7.6">
+<meta name="version" content="v5.7.7">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1015,7 +1015,7 @@ function openChat(characterId) {
   document.querySelector('meta[name="apple-mobile-web-app-title"]').content = displayName;
   
   // Clear messages area — just the divider, restoreChatHistory handles the rest
-  const messagesEl = document.getElementById('messages');
+  messagesEl = document.getElementById('messages');
   messagesEl.innerHTML = '<div class="ts-divider" id="todayDivider"></div>';
   
   // Switch views immediately (smooth transition)
@@ -1518,7 +1518,7 @@ openSubPanel = function(name) {
 // ============================================================
 // DOM REFS
 // ============================================================
-const messagesEl = document.getElementById('messages');
+let messagesEl = null;
 const inputEl    = document.getElementById('msgInput');
 const sendBtnEl  = document.getElementById('sendBtn');
 const typingEl   = document.getElementById('typingIndicator');
@@ -2611,7 +2611,7 @@ async function syncFromCloud() {
   showToast('Syncing...'); // user-visible feedback
   try {
     // Clear existing messages before re-rendering
-    const messagesEl = document.getElementById('messages');
+    messagesEl = document.getElementById('messages');
     const existing = messagesEl.querySelectorAll('.msg-row, .ts-divider');
     existing.forEach(el => el.remove());
     _historyRestored = false;
@@ -3376,7 +3376,7 @@ async function restoreChatHistory(force = false) {
     history = deduped;
   }
   // Render — clear everything first, then render or show welcome
-  const messagesEl = document.getElementById('messages');
+  messagesEl = document.getElementById('messages');
   messagesEl.innerHTML = '<div class="ts-divider" id="todayDivider"></div>';
   
   if (history && history.length > 0) {
