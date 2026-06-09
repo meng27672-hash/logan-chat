@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.7.9">
+<meta name="version" content="v5.7.10">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3394,10 +3394,22 @@ async function restoreChatHistory(force = false) {
     }
   } // end if (config.supabaseUrl)
   _cloudAvailable = cloudOk;
-  // Fallback to local
-  if (!history || history.length === 0) {
-    history = loadLocalMemory(_restoreCid);
-    if (history.length > 0) updateMemoryBadge(history.length, false);
+  // Always merge localStorage — it's the authoritative local data source.
+  // Supabase may return stale/incomplete data; localStorage has the latest messages.
+  const localHistory = loadLocalMemory(_restoreCid);
+  if (history && history.length > 0) {
+    // Supabase returned data — merge with localStorage (dedup by role+content fingerprint)
+    const cloudFps = new Set(history.map(m => (m.role || '') + '::' + (m.content || '').slice(0, 100)));
+    for (const m of localHistory) {
+      const fp = (m.role || '') + '::' + (m.content || '').slice(0, 100);
+      if (!cloudFps.has(fp)) {
+        history.push(m);
+      }
+    }
+    updateMemoryBadge(history.length, true);
+  } else if (localHistory.length > 0) {
+    history = localHistory;
+    updateMemoryBadge(history.length, false);
   }
   // Deduplicate: remove identical consecutive messages (same role+content back-to-back)
   if (history && history.length > 0) {
