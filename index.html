@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.7.4">
+<meta name="version" content="v5.7.5">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1222,11 +1222,15 @@ async function sbInsert(role, content, cid) {
   // Normalize role: 'logan' → 'assistant' for Supabase storage
   const normRole = role === 'logan' ? 'assistant' : role;
   try {
+    const _abortSI = new AbortController();
+    const _timeoutSI = setTimeout(() => _abortSI.abort(), 8000); // 8s timeout
     await fetch(`${config.supabaseUrl}/rest/v1/chat_memory`, {
       method: 'POST',
       headers: supabaseHeaders(),
-      body: JSON.stringify({ session_id: getSessionId(cid), role: normRole, content })
+      body: JSON.stringify({ session_id: getSessionId(cid), role: normRole, content }),
+      signal: _abortSI.signal
     });
+    clearTimeout(_timeoutSI);
   } catch(e) { console.warn('Supabase insert failed:', e); }
 }
 
@@ -3320,7 +3324,10 @@ async function restoreChatHistory(force = false) {
   if (config.supabaseUrl && config.supabaseKey) {
     const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(_restoreCid)}&order=created_at.asc&limit=200&select=role,content`;
     try {
-      const resp = await fetch(url, { headers: supabaseHeaders() });
+      const _abortRC = new AbortController();
+      const _timeoutRC = setTimeout(() => _abortRC.abort(), 8000); // 8s timeout — Supabase down → fallback to local
+      const resp = await fetch(url, { headers: supabaseHeaders(), signal: _abortRC.signal });
+      clearTimeout(_timeoutRC);
       if (resp.ok) {
         cloudOk = true;
         const rows = await resp.json();
@@ -3329,9 +3336,13 @@ async function restoreChatHistory(force = false) {
           // Update badge with count
           try {
             const countUrl = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(_restoreCid)}&select=id`;
+            const _abortCC = new AbortController();
+            const _timeoutCC = setTimeout(() => _abortCC.abort(), 5000);
             const r = await fetch(countUrl, {
-              headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' }
+              headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' },
+              signal: _abortCC.signal
             });
+            clearTimeout(_timeoutCC);
             const count = r.headers.get('content-range')?.split('/')[1] || rows.length;
             updateMemoryBadge(count, true);
           } catch(e) { updateMemoryBadge(rows.length, true); }
