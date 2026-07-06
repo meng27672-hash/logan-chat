@@ -2786,6 +2786,23 @@ function appendMessage(who, text, replyRef, isStatus) {
       const after = text.substring(actionMatch.index + actionMatch[0].length).trimStart();
       mainText = (before + ' ' + after).trim();
     }
+    // ── v5.9.4: Extract "bare bracket" action prefix (e.g. "[声音很轻] 我知道。") ──
+    // DeepSeek often omits "ACTION:" and just writes "[声音很轻] dialogue".
+    // We want to lift the bracketed action into its own grey bubble, like [ACTION: ...].
+    if (!actionContent) {
+      const bareLeading = text.match(/^\s*[\[【]\s*([^\]】\n]{1,80})\s*[\]】]\s*([\s\S]*)$/);
+      if (bareLeading) {
+        const inner = bareLeading[1].trim();
+        const rest = bareLeading[2].trim();
+        const looksLikeAction = /^(?:声音|动作|表情|眼神|目光|嘴角|眉头|语气|神态|转身|回头|侧头|抬头|低头|伸手|手|头|眼|眉|指尖|脚步|背影|侧脸|侧影|影子|脸|肩膀|肩|背|胸|腰|腿|手臂|手指|下巴|唇|嘴唇|呼吸|气息|声|笑容|笑意|唇角|苦笑|微笑|冷笑|叹气|叹息|犹豫|沉默|停顿|缓缓|慢慢|微微|轻轻|突然|忽然|猛地|静静|默默|淡淡|悠悠|转|看|望|盯|瞥|瞄|瞟|笑|叹|皱|挑|扬|点|摇|摆|偏|歪|凑|靠|倚|抱|搂|拉|拽|握|捏|摸|碰|拍|敲|敲了敲)/.test(inner)
+          || /[，,]\s*(?:像是|似乎|仿佛|一样|般)/.test(inner)
+          || /笑|叹|停|走|坐|站|靠|看|望|瞥|瞄|瞟|皱|挑|转|伸|按|敲|点|摇|摆|动|凑|倚|抱|握|捏|摸|碰|拍|拉|拽|收|放|抬|低|侧|偏|歪|抿|咬|舔|扬|眨|眯|闭|张|开|瞟/.test(inner);
+        if (looksLikeAction) {
+          actionContent = inner;
+          mainText = rest;
+        }
+      }
+    }
     // ── FACE-TO-FACE TRACKING (v5.9.2) ──
     // If this character message has [ACTION:] / *action* / "bare bracket action" like [声音很轻], they're with the user.
     // Save timestamp so getCharacterState skips the sleep roll.
@@ -3945,6 +3962,21 @@ function appendRestoredMessage(who, text) {
       const before = text.substring(0, actionMatch.index).trimEnd();
       const after = text.substring(actionMatch.index + actionMatch[0].length).trimStart();
       mainText = (before + ' ' + after).trim();
+    }
+    // ── v5.9.4: Extract "bare bracket" action prefix ──
+    if (!actionContent) {
+      const bareLeading = text.match(/^\s*[\[【]\s*([^\]】\n]{1,80})\s*[\]】]\s*([\s\S]*)$/);
+      if (bareLeading) {
+        const inner = bareLeading[1].trim();
+        const rest = bareLeading[2].trim();
+        const looksLikeAction = /^(?:声音|动作|表情|眼神|目光|嘴角|眉头|语气|神态|转身|回头|侧头|抬头|低头|伸手|手|头|眼|眉|指尖|脚步|背影|侧脸|侧影|影子|脸|肩膀|肩|背|胸|腰|腿|手臂|手指|下巴|唇|嘴唇|呼吸|气息|声|笑容|笑意|唇角|苦笑|微笑|冷笑|叹气|叹息|犹豫|沉默|停顿|缓缓|慢慢|微微|轻轻|突然|忽然|猛地|静静|默默|淡淡|悠悠|转|看|望|盯|瞥|瞄|瞟|笑|叹|皱|挑|扬|点|摇|摆|偏|歪|凑|靠|倚|抱|搂|拉|拽|握|捏|摸|碰|拍|敲|敲了敲)/.test(inner)
+          || /[，,]\s*(?:像是|似乎|仿佛|一样|般)/.test(inner)
+          || /笑|叹|停|走|坐|站|靠|看|望|瞥|瞄|瞟|皱|挑|转|伸|按|敲|点|摇|摆|动|凑|倚|抱|握|捏|摸|碰|拍|拉|拽|收|放|抬|低|侧|偏|歪|抿|咬|舔|扬|眨|眯|闭|张|开|瞟/.test(inner);
+        if (looksLikeAction) {
+          actionContent = inner;
+          mainText = rest;
+        }
+      }
     }
     // ── FACE-TO-FACE TRACKING (v5.9.2) ──
     const hasBareBracketAction = /^\s*[\[【]\s*[^\]】\n]{1,80}\s*[\]】]\s*[\s\S]*$/.test(text)
