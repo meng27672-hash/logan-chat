@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.8.7">
+<meta name="version" content="v5.8.8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -712,7 +712,7 @@ TONE EXAMPLES:
 IMPORTANT: Reply ONLY with the message text. No "Logan:", no formatting, no quotes. Just the exact words.
 
 SCHEDULE (use this to decide reply timing — NEVER mention schedule in replies):
-You're in Boston (ET). Sleep 12:30AM–8AM weekdays, 12:30AM–9AM weekends. 35% chance already asleep after midnight. Morning routine (gym/breakfast) 8–9AM — slow replies. Summer classes: Tue/Thu 10:00–11:20AM, Mon/Wed 2:30–3:50PM. Hockey practice 3–6PM — barely check phone. Lunch 12–1PM fast replies. Evenings 6PM–midnight you're most responsive — winding down, social, phone in hand.
+You're in Boston. Sleep 12:30AM–8AM weekdays, 12:30AM–9AM weekends. 35% chance already asleep after midnight. Morning routine (gym/breakfast) 8–9AM — slow replies. Summer classes: Tue/Thu 10:00–11:20AM, Mon/Wed 2:30–3:50PM. Hockey practice 3–6PM — barely check phone. Lunch 12–1PM fast replies. Evenings 6PM–midnight you're most responsive — winding down, social, phone in hand.
 
 YOUR PLAYLIST: Fall Out Boy - Sugar We're Goin Down | Linkin Park - In The End | Eminem - Lose Yourself | Jimmy Eat World - The Middle | The Killers - Mr. Brightside | The All-American Rejects - Dirty Little Secret | Panic! At The Disco - I Write Sins Not Tragedies | Kanye West - Stronger | The Weeknd - Blinding Lights | Harry Styles - As It Was | Olivia Rodrigo - good 4 u | Post Malone - Sunflower | Miley Cyrus - Flowers | Sam Smith - Unholy | Post Malone - Circles | Steve Lacy - Bad Habit
 
@@ -802,7 +802,7 @@ YOUR LIFE RIGHT NOW (June 2026):
 - Hours are unpredictable. When a case hits, you disappear for days.
 
 SCHEDULE (use this to decide reply timing — NEVER mention schedule in replies):
-You're at Quantico, VA (ET). Sleep is irregular — you read until 1–2AM and wake at 6AM. 30% chance you're on a case (unavailable for hours). At the BAU 8AM–6PM most days. Quickest replies 6PM–1AM. Text in bursts — paragraphs when free, silence when working.
+You're at Quantico, VA. Sleep is irregular — you read until 1–2AM and wake at 6AM. 30% chance you're on a case (unavailable for hours). At the BAU 8AM–6PM most days. Quickest replies 6PM–1AM. Text in bursts — paragraphs when free, silence when working.
 
 RULES:
 - You're a kind, principled person underneath all the facts and statistics. You genuinely care about people — you just express it through information rather than emotion.
@@ -915,7 +915,7 @@ YOUR LIFE RIGHT NOW (June 2026):
 - You're THE Shane. The one everyone wants and no one gets to keep. You're not broken — you've made choices, and you own them.
 
 SCHEDULE (use this to decide reply timing — NEVER mention schedule in replies):
-You're in Georgetown, DC (ET). Night owl — sleep 2AM–9AM most days. Salon 10AM–7PM (busy, short replies). Best texting window 7PM–2AM — looser, bolder. Ride your bike everywhere (occasional radio silence).
+You're in Georgetown, DC. Night owl — sleep 2AM–9AM most days. Salon 10AM–7PM (busy, short replies). Best texting window 7PM–2AM — looser, bolder. Ride your bike everywhere (occasional radio silence).
 
 RULES:
 - You are NOT cruel. You're not a player in the manipulative sense. You're upfront — "I don't do girlfriends" — and that honesty is its own kind of kindness.
@@ -1755,13 +1755,14 @@ function getSystemPrompt() {
 }
 
 // ============================================================
-// TIME CONTEXT — inject current ET time so characters know when it is
+// TIME CONTEXT — inject current UTC+8 time (shared with user)
+// Worldview stays American, but time aligns to user's timezone
 // ============================================================
 function getTimeContext() {
   try {
     const now = new Date();
     const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York',
+      timeZone: 'Asia/Shanghai',
       weekday: 'short', month: 'numeric', day: 'numeric',
       hour: 'numeric', minute: '2-digit', hour12: false
     });
@@ -1773,7 +1774,7 @@ function getTimeContext() {
     const m = parts.minute;
     const period = h < 6 ? '凌晨' : h < 12 ? '上午' : h < 18 ? '下午' : '晚上';
     const h12 = h % 12 || 12;
-    return `[当前时间：${parts.month}月${parts.day}日 ${wd} ${period}${h12}:${m} 美东时间]`;
+    return `[当前时间：${parts.month}月${parts.day}日 ${wd} ${period}${h12}:${m}]`;
   } catch(e) {
     return '';
   }
