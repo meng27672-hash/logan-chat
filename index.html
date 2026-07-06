@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.8.8">
+<meta name="version" content="v5.9.6">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2669,6 +2669,16 @@ function isInFaceToFaceMode(cid) {
   return false;
 }
 
+// ── v5.9.6: 启发式判断方括号内容是否是动作描写 ──
+// 用于过滤 emoji 短代码 (heart_eyes)、用户引用 ([user name])、时间戳 ([10:54 PM])
+// 保留动作相关的中文感官/动作词不动（它们要被提取到灰色 action 块）
+function looksLikeBareBracketAction(inner) {
+  if (!inner) return false;
+  return /^(?:声音|动作|表情|眼神|目光|嘴角|眉头|语气|神态|转身|回头|侧头|抬头|低头|伸手|手|头|眼|眉|指尖|脚步|背影|侧脸|侧影|影子|脸|肩膀|肩|背|胸|腰|腿|手臂|手指|下巴|唇|嘴唇|呼吸|气息|声|笑容|笑意|唇角|苦笑|微笑|冷笑|叹气|叹息|犹豫|沉默|停顿|缓缓|慢慢|微微|轻轻|突然|忽然|猛地|静静|默默|淡淡|悠悠|转|看|望|盯|瞥|瞄|瞟|笑|叹|皱|挑|扬|点|摇|摆|偏|歪|凑|靠|倚|抱|搂|拉|拽|握|捏|摸|碰|拍|敲|敲了敲|她|他)/.test(inner)
+    || /[，,]\s*(?:像是|似乎|仿佛|一样|般)/.test(inner)
+    || /笑|叹|停|走|坐|站|靠|看|望|瞥|瞄|瞟|皱|挑|转|伸|按|敲|点|摇|摆|动|凑|倚|抱|握|捏|摸|碰|拍|拉|拽|收|放|抬|低|侧|偏|歪|抿|咬|舔|扬|眨|眯|闭|张|开|瞟/.test(inner);
+}
+
 function sanitizeCharacterReply(cid, text) {
   // Safety net: if anything goes wrong in sanitizer, return original text
   try {
@@ -2786,47 +2796,36 @@ function appendMessage(who, text, replyRef, isStatus) {
       const after = text.substring(actionMatch.index + actionMatch[0].length).trimStart();
       mainText = (before + ' ' + after).trim();
     }
-    // ── v5.9.5: Extract ALL "bare bracket" actions anywhere in message ──
-    // v5.9.4 only handled leading brackets; but DeepSeek often embeds them mid-message
-    // like:  "可以。不过——[她收回手...]——你穿我的衣服"  or  "好吧。[她点头]真的。"
-    // We extract the FIRST bare-bracket action to actionContent, and keep the rest
-    // (with that bracket stripped) as mainText. If there are multiple, we just lift
-    // the first one and strip the others from mainText so the white bubble stays clean.
+    // ── v5.9.6: 统一扫描所有 "bare bracket" 段 ──
+    // 之前 v5.9.4/v5.9.5 的 bug：bareLeading 命中后，剩余的 mainText 里
+    // 还可能包含其他方括号（比如 "不过——[她收回手...]——你穿我的衣服"），
+    // 而且 anywhere 路径被 `if (!actionContent)` 包裹，根本不会执行。
+    // 新方案：扫描整个 text，挑第一个 action-like 的方括号进 actionContent，
+    // 然后**全局剥掉 mainText 中所有方括号**（不论是否 action），
+    // 启发式启发器会过滤掉 emoji 短代码/用户引用/时间戳 → 它们会被保留。
     if (!actionContent) {
-      // Find every bracketed segment
-      const bareLeading = text.match(/^\s*[\[【]\s*([^\]】\n]{1,120})\s*[\]】]\s*([\s\S]*)$/);
-      if (bareLeading) {
-        const inner = bareLeading[1].trim();
-        const rest = bareLeading[2].trim();
-        const looksLikeAction = /^(?:声音|动作|表情|眼神|目光|嘴角|眉头|语气|神态|转身|回头|侧头|抬头|低头|伸手|手|头|眼|眉|指尖|脚步|背影|侧脸|侧影|影子|脸|肩膀|肩|背|胸|腰|腿|手臂|手指|下巴|唇|嘴唇|呼吸|气息|声|笑容|笑意|唇角|苦笑|微笑|冷笑|叹气|叹息|犹豫|沉默|停顿|缓缓|慢慢|微微|轻轻|突然|忽然|猛地|静静|默默|淡淡|悠悠|转|看|望|盯|瞥|瞄|瞟|笑|叹|皱|挑|扬|点|摇|摆|偏|歪|凑|靠|倚|抱|搂|拉|拽|握|捏|摸|碰|拍|敲|敲了敲|她|他)/.test(inner)
-          || /[，,]\s*(?:像是|似乎|仿佛|一样|般)/.test(inner)
-          || /笑|叹|停|走|坐|站|靠|看|望|瞥|瞄|瞟|皱|挑|转|伸|按|敲|点|摇|摆|动|凑|倚|抱|握|捏|摸|碰|拍|拉|拽|收|放|抬|低|侧|偏|歪|抿|咬|舔|扬|眨|眯|闭|张|开|瞟/.test(inner);
-        if (looksLikeAction) {
-          actionContent = inner;
-          mainText = rest;
-        }
+      const re = /[\[【]\s*([^\]】\n]{1,120})\s*[\]】]/g;
+      let m;
+      const candidates = [];
+      while ((m = re.exec(text)) !== null) {
+        candidates.push({ inner: m[1].trim() });
       }
-      // ── v5.9.5: If no leading bracket, search anywhere in the message ──
-      if (!actionContent) {
-        const anywhere = text.match(/[\[【]\s*([^\]】\n]{1,120})\s*[\]】]/);
-        if (anywhere) {
-          const inner = anywhere[1].trim();
-          const looksLikeAction = /^(?:声音|动作|表情|眼神|目光|嘴角|眉头|语气|神态|转身|回头|侧头|抬头|低头|伸手|手|头|眼|眉|指尖|脚步|背影|侧脸|侧影|影子|脸|肩膀|肩|背|胸|腰|腿|手臂|手指|下巴|唇|嘴唇|呼吸|气息|声|笑容|笑意|唇角|苦笑|微笑|冷笑|叹气|叹息|犹豫|沉默|停顿|缓缓|慢慢|微微|轻轻|突然|忽然|猛地|静静|默默|淡淡|悠悠|转|看|望|盯|瞥|瞄|瞟|笑|叹|皱|挑|扬|点|摇|摆|偏|歪|凑|靠|倚|抱|搂|拉|拽|握|捏|摸|碰|拍|敲|敲了敲|她|他)/.test(inner)
-            || /[，,]\s*(?:像是|似乎|仿佛|一样|般)/.test(inner)
-            || /笑|叹|停|走|坐|站|靠|看|望|瞥|瞄|瞟|皱|挑|转|伸|按|敲|点|摇|摆|动|凑|倚|抱|握|捏|摸|碰|拍|拉|拽|收|放|抬|低|侧|偏|歪|抿|咬|舔|扬|眨|眯|闭|张|开|瞟/.test(inner);
-          if (looksLikeAction) {
-            actionContent = inner;
-            // Strip ALL bare bracket actions from the dialogue (so the white bubble is clean)
-            mainText = text.replace(/[\[【]\s*[^\]】\n]{1,120}\s*[\]】]/g, '').trim();
-          }
-        }
+      const first = candidates.find(x => looksLikeBareBracketAction(x.inner));
+      if (first) {
+        actionContent = first.inner;
       }
+    }
+    // ── v5.9.6: 全局剥掉 mainText 中残留的方括号（保持白色气泡干净） ──
+    if (actionContent) {
+      mainText = mainText.replace(/[\[【]\s*[^\]】\n]{1,120}\s*[\]】]/g, '').trim();
+      // 清理残留的 ————（方括号位置被挖空后会留下多个 ——
+      mainText = mainText.replace(/[——]{2,}/g, '——').replace(/^[——\s]+|[——\s]+$/g, '').trim();
+      mainText = mainText.replace(/——(?=[。？！，、])/g, '').trim();
     }
     // ── FACE-TO-FACE TRACKING (v5.9.2) ──
     // If this character message has [ACTION:] / *action* / "bare bracket action" like [声音很轻], they're with the user.
     // Save timestamp so getCharacterState skips the sleep roll.
-    const hasBareBracketAction = /^\s*[\[【]\s*[^\]】\n]{1,80}\s*[\]】]\s*[\s\S]*$/.test(text)
-      || /\[[^\]】\n]{1,80}\]\s*$/.test(text);
+    const hasBareBracketAction = /[\[【]\s*[^\]】\n]{1,80}\s*[\]】]/.test(text);
     if (actionContent || /\*[^*\n]+\*/.test(text) || hasBareBracketAction) {
       localStorage.setItem('lastActionTime_' + who, Date.now().toString());
     }
@@ -3982,37 +3981,27 @@ function appendRestoredMessage(who, text) {
       const after = text.substring(actionMatch.index + actionMatch[0].length).trimStart();
       mainText = (before + ' ' + after).trim();
     }
-    // ── v5.9.5: Extract ALL "bare bracket" actions anywhere in message ──
+    // ── v5.9.6: 统一扫描所有 "bare bracket" 段（与 appendMessage 一致） ──
     if (!actionContent) {
-      const bareLeading = text.match(/^\s*[\[【]\s*([^\]】\n]{1,120})\s*[\]】]\s*([\s\S]*)$/);
-      if (bareLeading) {
-        const inner = bareLeading[1].trim();
-        const rest = bareLeading[2].trim();
-        const looksLikeAction = /^(?:声音|动作|表情|眼神|目光|嘴角|眉头|语气|神态|转身|回头|侧头|抬头|低头|伸手|手|头|眼|眉|指尖|脚步|背影|侧脸|侧影|影子|脸|肩膀|肩|背|胸|腰|腿|手臂|手指|下巴|唇|嘴唇|呼吸|气息|声|笑容|笑意|唇角|苦笑|微笑|冷笑|叹气|叹息|犹豫|沉默|停顿|缓缓|慢慢|微微|轻轻|突然|忽然|猛地|静静|默默|淡淡|悠悠|转|看|望|盯|瞥|瞄|瞟|笑|叹|皱|挑|扬|点|摇|摆|偏|歪|凑|靠|倚|抱|搂|拉|拽|握|捏|摸|碰|拍|敲|敲了敲|她|他)/.test(inner)
-          || /[，,]\s*(?:像是|似乎|仿佛|一样|般)/.test(inner)
-          || /笑|叹|停|走|坐|站|靠|看|望|瞥|瞄|瞟|皱|挑|转|伸|按|敲|点|摇|摆|动|凑|倚|抱|握|捏|摸|碰|拍|拉|拽|收|放|抬|低|侧|偏|歪|抿|咬|舔|扬|眨|眯|闭|张|开|瞟/.test(inner);
-        if (looksLikeAction) {
-          actionContent = inner;
-          mainText = rest;
-        }
+      const re = /[\[【]\s*([^\]】\n]{1,120})\s*[\]】]/g;
+      let m;
+      const candidates = [];
+      while ((m = re.exec(text)) !== null) {
+        candidates.push({ inner: m[1].trim() });
       }
-      if (!actionContent) {
-        const anywhere = text.match(/[\[【]\s*([^\]】\n]{1,120})\s*[\]】]/);
-        if (anywhere) {
-          const inner = anywhere[1].trim();
-          const looksLikeAction = /^(?:声音|动作|表情|眼神|目光|嘴角|眉头|语气|神态|转身|回头|侧头|抬头|低头|伸手|手|头|眼|眉|指尖|脚步|背影|侧脸|侧影|影子|脸|肩膀|肩|背|胸|腰|腿|手臂|手指|下巴|唇|嘴唇|呼吸|气息|声|笑容|笑意|唇角|苦笑|微笑|冷笑|叹气|叹息|犹豫|沉默|停顿|缓缓|慢慢|微微|轻轻|突然|忽然|猛地|静静|默默|淡淡|悠悠|转|看|望|盯|瞥|瞄|瞟|笑|叹|皱|挑|扬|点|摇|摆|偏|歪|凑|靠|倚|抱|搂|拉|拽|握|捏|摸|碰|拍|敲|敲了敲|她|他)/.test(inner)
-            || /[，,]\s*(?:像是|似乎|仿佛|一样|般)/.test(inner)
-            || /笑|叹|停|走|坐|站|靠|看|望|瞥|瞄|瞟|皱|挑|转|伸|按|敲|点|摇|摆|动|凑|倚|抱|握|捏|摸|碰|拍|拉|拽|收|放|抬|低|侧|偏|歪|抿|咬|舔|扬|眨|眯|闭|张|开|瞟/.test(inner);
-          if (looksLikeAction) {
-            actionContent = inner;
-            mainText = text.replace(/[\[【]\s*[^\]】\n]{1,120}\s*[\]】]/g, '').trim();
-          }
-        }
+      const first = candidates.find(x => looksLikeBareBracketAction(x.inner));
+      if (first) {
+        actionContent = first.inner;
       }
     }
+    // ── v5.9.6: 全局剥掉 mainText 中残留的方括号（保持白色气泡干净） ──
+    if (actionContent) {
+      mainText = mainText.replace(/[\[【]\s*[^\]】\n]{1,120}\s*[\]】]/g, '').trim();
+      mainText = mainText.replace(/[——]{2,}/g, '——').replace(/^[——\s]+|[——\s]+$/g, '').trim();
+      mainText = mainText.replace(/——(?=[。？！，、])/g, '').trim();
+    }
     // ── FACE-TO-FACE TRACKING (v5.9.2) ──
-    const hasBareBracketAction = /^\s*[\[【]\s*[^\]】\n]{1,80}\s*[\]】]\s*[\s\S]*$/.test(text)
-      || /\[[^\]】\n]{1,80}\]\s*$/.test(text);
+    const hasBareBracketAction = /[\[【]\s*[^\]】\n]{1,80}\s*[\]】]/.test(text);
     if (actionContent || /\*[^*\n]+\*/.test(text) || hasBareBracketAction) {
       localStorage.setItem('lastActionTime_' + who, Date.now().toString());
     }
