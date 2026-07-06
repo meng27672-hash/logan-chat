@@ -2,7 +2,7 @@
 // Enables PWA install + Web Push notifications
 // v6: Robust install — only precache critical files, meme files cached on-demand
 
-const CACHE_NAME = 'logan-chat-v20';
+const CACHE_NAME = 'logan-chat-v21';
 const BASE = '/logan-chat/';
 
 // Only precache the absolute minimum needed for PWA install + offline shell
