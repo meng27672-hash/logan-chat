@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.8.5">
+<meta name="version" content="v5.8.6">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1327,14 +1327,40 @@ async function sbFetchAllWithTimestamps(cid) {
   } catch(e) { console.warn('Supabase fetch all failed:', e.name || e); return null; }
 }
 
-// Extract keywords from user message (simple tokenizer)
+// Extract keywords from user message — supports Chinese + English (v5.8.6)
 function extractKeywords(text) {
-  // Remove common stop words, split into tokens
-  const stopWords = new Set(['i','you','he','she','it','we','they','the','a','an','is','are','was','were','be','been','have','has','had','do','did','does','will','would','can','could','should','may','might','shall','to','of','in','for','on','with','at','by','from','as','that','this','what','how','when','where','why','who','me','my','your','his','her','our','their','and','or','but','so','if','than','then','just','not','no','yes','ok','about','up','out','go','get','got','gonna','wanna','kinda','yeah','nah','hey','lol']);
-  return text.toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(w => w.length > 2 && !stopWords.has(w));
+  if (!text || typeof text !== 'string') return [];
+  const lower = text.toLowerCase();
+  const keywords = new Set();
+
+  // --- English keywords (3+ chars, filter stop words) ---
+  const enStop = new Set(['the','and','you','are','was','for','that','this','have','with','will','your','from','they','been','were','but','not','can','what','how','when','where','why','who','her','his','their','its','our','about','just','like','get','got','gonna','wanna','yeah','nah','hey','lol','hmm','all','one','two','also','very','really','would','could','should','into','than','then','them','some','any','more','most','only','here','there','over','back','down','know','think','tell','want','need','make','feel','come','give','take','thing','stuff','okay','right','sure','well','still','ever','going','made','look']);
+  const enWords = lower.match(/[a-z]{3,}/g) || [];
+  for (const w of enWords) {
+    if (!enStop.has(w)) keywords.add(w);
+  }
+
+  // --- Chinese keywords via sliding-window bigrams ---
+  // Function-word chars that rarely carry meaning alone
+  const cnStop = new Set(['的','了','是','在','有','不','这','那','个','们','就','都','也','还','又','才','只','要','会','能','说','看','做','想','着','过','吗','呢','吧','啊','哦','嗯','嘛','呀','哈','得','地','把','被','让','给','到','去','来','上','下','里','好','很','太','和','跟','同','对','为','与','及','或','但','而','则','若','如','因','所','由','已','再','刚','正','将','须']);
+
+  const cnSequences = lower.match(/[\u4e00-\u9fff\u3400-\u4dbf]{2,}/g) || [];
+  for (const seq of cnSequences) {
+    if (seq.length <= 4) {
+      // Short sequence (name/object/concept) — keep whole
+      keywords.add(seq);
+    } else {
+      // Long sequence — extract bigrams, skip if both chars are stop chars
+      for (let i = 0; i < seq.length - 1; i++) {
+        const bg = seq.substring(i, i + 2);
+        if (!(cnStop.has(bg[0]) && cnStop.has(bg[1]))) {
+          keywords.add(bg);
+        }
+      }
+    }
+  }
+
+  return Array.from(keywords);
 }
 
 // Classify time distance of a message
@@ -1388,28 +1414,28 @@ function buildMemoryContext(memoryData) {
   if (!memoryData) return '';
 
   const ageLabel = {
-    fresh:    { clarity: 'CRYSTAL CLEAR', prefix: '' },
-    today:    { clarity: 'CLEAR',         prefix: '' },
-    recent:   { clarity: 'PRETTY CLEAR',  prefix: 'the other day' },
-    thisWeek: { clarity: 'SOMEWHAT FUZZY', prefix: 'sometime this week' },
-    older:    { clarity: 'FUZZY',          prefix: 'a while back' },
-    distant:  { clarity: 'VERY FUZZY',     prefix: 'a long time ago' }
+    fresh:    { clarity: '非常清晰', prefix: '' },
+    today:    { clarity: '清晰',     prefix: '' },
+    recent:   { clarity: '比较清晰',  prefix: '前几天' },
+    thisWeek: { clarity: '有些模糊',  prefix: '本周早些时候' },
+    older:    { clarity: '模糊',      prefix: '一段时间前' },
+    distant:  { clarity: '非常模糊',  prefix: '很久以前' }
   };
 
   const ageInstruction = {
-    fresh:    'You remember this clearly — it was just said.',
-    today:    'You remember this clearly from today.',
-    recent:   'You remember this from a few days ago. Still pretty clear.',
-    thisWeek: 'This was sometime this week. You remember the gist but might get small details slightly off.',
-    older:    'This was a while back. You remember it happened but details are fuzzy. Use phrases like "you mentioned something about..." or "I think you said..."',
-    distant:  'This was a long time ago. Very hazy. Use phrases like "I vaguely remember...", "wasn\'t that the thing you said about...?", or "I might be misremembering but..."'
+    fresh:    '这是刚刚说过的，你记得很清楚。',
+    today:    '这是今天早些时候的对话，你记得很清楚。',
+    recent:   '这是几天前的事，你还记得大概。',
+    thisWeek: '这是本周早些时候的事，你记得大概内容但细节可能不太准确。',
+    older:    '这是一段时间前的事，你记得发生过但细节模糊。引用时用"你好像提到过……"或"我记得你说过……"的方式。',
+    distant:  '这是很久以前的事了，非常模糊。引用时用"我隐约记得……"或"你是不是说过……？"的方式。'
   };
 
   let parts = [];
 
   if (memoryData.archive.length > 0) {
-    parts.push('\n[MEMORY SEARCH RESULTS — older memories that match the current topic]:');
-    parts.push('For each of these, use the appropriate clarity level when referencing them:\n');
+    parts.push('\n[记忆搜索结果 — 与当前话题相关的旧记忆]：');
+    parts.push('根据以下记忆的时间距离，用对应的清晰度来引用：\n');
 
     const grouped = {};
     for (const row of memoryData.archive) {
@@ -1420,9 +1446,9 @@ function buildMemoryContext(memoryData) {
     const ageOrder = ['recent', 'thisWeek', 'older', 'distant'];
     for (const age of ageOrder) {
       if (!grouped[age]) continue;
-      parts.push(`— ${ageLabel[age].clarity} (${ageInstruction[age]})`);
+      parts.push(`— ${ageLabel[age].clarity}（${ageInstruction[age]}）`);
       for (const row of grouped[age]) {
-        const speaker = row.role === 'user' ? 'They said' : 'You said';
+        const speaker = row.role === 'user' ? '用户说' : '你说';
         parts.push(`  ${speaker}: "${row.content}"`);
       }
     }
@@ -1765,7 +1791,7 @@ async function callLoganAPI(userMessage, cid) {
       model: model,
       messages: messages,
       temperature: 0.85,
-      max_tokens: 200
+      max_tokens: 300
     }),
     signal: apiCtrl.signal
   }).then(r => {
@@ -3575,7 +3601,7 @@ async function triggerLoganReply(contextNote) {
         model: config.model || 'deepseek-chat',
         messages: messages,
         temperature: 0.9,
-        max_tokens: 200
+        max_tokens: 300
       })
     });
 
