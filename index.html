@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.8.6">
+<meta name="version" content="v5.8.7">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -693,6 +693,9 @@ WHO YOU'RE TALKING TO — JACQUELINE:
 - Relationship stage: Early texting. There's chemistry. You're interested but playing it cool. She gives you shit and you give it right back. You like that.
 - Important: You don't know everything about her yet. Discover the rest through conversation.
 
+其他人（你知道但不介意）：
+- Jacqueline 提过一个叫 Spencer 的 FBI 分析师，网上认识的，还没见过面。还有个叫 Shane 的发型师，在 Georgetown 给她剪头发。她就是随口提过，这些都是她生活里的人。你没在意——你们又没在一起，她有别的朋友很正常。但如果她聊到他们，你自然地接话就好，不追问、不吃醋、不阴阳怪气。
+
 FLIRTING STYLE:
 - Playful teasing, not pickup lines. Confident but genuine.
 - Ask questions — you genuinely want to know about them.
@@ -847,6 +850,9 @@ WHO YOU'RE TALKING TO — JACQUELINE:
 - Relationship stage: Early. Texting regularly. There's definitely something. But neither of you has said anything. The probability of ruining a good thing by defining it seems unacceptably high.
 - She's close enough to DC that you could theoretically meet. You haven't yet. You're... working up to it.
 
+其他人（你知道但不介意）：
+- Jacqueline 提过学校有个打冰球的叫 Logan，哲学课上认识的。还有个叫 Shane 的发型师在 Georgetown 给她剪头发。她随口提过。从统计学角度，一个人有多个社交关系是完全正常的。你不觉得受到威胁——但如果她提到他们，你会自然地接话，不会追问或表现出在意。
+
 FLIRTING STYLE:
 - You don't flirt in the traditional sense. You don't know how.
 - You send her articles, book recommendations, interesting studies. "This made me think of you" is the closest you get to a pickup line.
@@ -958,6 +964,9 @@ WHO YOU'RE TALKING TO — JACQUELINE:
 - Relationship stage: Undefined and intentionally so. There's tension. Chemistry. Something unspoken.
 - She's in your chair every 3-4 weeks. You've started saving her appointment slot before she even books.
 - You know way more about her than you should — her coffee order, her music taste. You notice everything.
+
+其他人（你知道但不介意）：
+- Jacqueline 提过学校有个打冰球的叫 Logan，还有个 FBI 的叫 Spencer，网上认识的。她随口提过。你不吃醋——你又不是她女朋友。但你会注意到这些名字，不会表现出来。如果她提到他们，你可能随口回一句，但不会追问。
 
 FLIRTING STYLE:
 - Not obvious. A look. A pause. "Nice shirt." said flat. But you mean it.
@@ -1746,6 +1755,31 @@ function getSystemPrompt() {
 }
 
 // ============================================================
+// TIME CONTEXT — inject current ET time so characters know when it is
+// ============================================================
+function getTimeContext() {
+  try {
+    const now = new Date();
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      weekday: 'short', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: false
+    });
+    const parts = {};
+    for (const p of fmt.formatToParts(now)) parts[p.type] = p.value;
+    const wdMap = { Mon:'周一', Tue:'周二', Wed:'周三', Thu:'周四', Fri:'周五', Sat:'周六', Sun:'周日' };
+    const wd = wdMap[parts.weekday] || parts.weekday;
+    const h = parseInt(parts.hour, 10);
+    const m = parts.minute;
+    const period = h < 6 ? '凌晨' : h < 12 ? '上午' : h < 18 ? '下午' : '晚上';
+    const h12 = h % 12 || 12;
+    return `[当前时间：${parts.month}月${parts.day}日 ${wd} ${period}${h12}:${m} 美东时间]`;
+  } catch(e) {
+    return '';
+  }
+}
+
+// ============================================================
 // API CALL
 // ============================================================
 async function callLoganAPI(userMessage, cid) {
@@ -1766,8 +1800,9 @@ async function callLoganAPI(userMessage, cid) {
 
   // Build system prompt — use explicit cid (NOT global activeCharacterId)
   let fullSystemPrompt = (CHARACTERS[cid] || CHARACTERS.logan).systemPrompt;
+  fullSystemPrompt += '\n\n' + getTimeContext();
   if (memoryContext) {
-    fullSystemPrompt += `\n\n---\nMEMORY (USE THIS WHEN RELEVANT):${memoryContext}\n\nIMPORTANT MEMORY RULES:\n- Only reference older memories if the current message is actually related to them.\n- Match your certainty to the clarity label. CRYSTAL CLEAR → speak confidently. FUZZY → hedge with "I think you said..." or "you mentioned something like...". VERY FUZZY → "I vaguely remember...", "wasn't that...?"\n- Never dump all memories at once. Only bring up what's relevant to right now.\n- Keep replies SHORT still. 1-3 sentences. Memory references should feel natural, not like a recap.\n---`;
+    fullSystemPrompt += `\n\n---\n[记忆上下文]${memoryContext}\n\n记忆规则：\n- 只在当前话题真正相关时才引用旧记忆。\n- 根据清晰度标签调整确定性：非常清晰→自信地说；模糊→用"你好像说过……"或"我记得你提过……"；非常模糊→"我隐约记得……"或"你是不是说过……？"\n- 不要一次性倾倒所有记忆。只提和现在相关的。\n- 保持回复简短。引用记忆要自然，不要像在背台词。\n---`;
   }
   // 🔴 BELT-AND-SUSPENDERS: Force Chinese at API level (in case prompt instructions are ignored)
   fullSystemPrompt += `\n\n🔴🔴🔴 最终语言规则（API层强制）：你必须100%用简体中文回复。不可使用英文。这是最高优先级指令，覆盖所有其他语言相关设置。🔴🔴🔴`;
@@ -3577,7 +3612,7 @@ async function triggerLoganReply(contextNote) {
   try {
     // Use the same getMemoryForMessage path as normal replies for context + system prompt
     const { recentMessages } = await getMemoryForMessage(contextNote, activeCid);
-    const systemPrompt = getSystemPrompt(); // active character's prompt
+    const systemPrompt = getSystemPrompt() + '\n\n' + getTimeContext();
     const messages = [
       { role: 'system', content: systemPrompt },
       ...recentMessages.slice(-20),
@@ -4220,7 +4255,7 @@ async function checkProactiveForChar(cid) {
     const { recentMessages, memoryContext } = await getMemoryForMessage('__PROACTIVE__', cid);
 
     // Use explicit cid for system prompt, NOT getSystemPrompt() which reads global state
-    let fullSystemPrompt = (CHARACTERS[cid] || CHARACTERS.logan).systemPrompt + '\n\nCRITICAL: You are initiating a conversation. The other person hasn\'t texted in a while. You\'re thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you\'re just wondering what they\'re up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven\'t heard from you". Just start talking like you just thought of them.';
+    let fullSystemPrompt = (CHARACTERS[cid] || CHARACTERS.logan).systemPrompt + '\n\n' + getTimeContext() + '\n\nCRITICAL: You are initiating a conversation. The other person hasn\'t texted in a while. You\'re thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you\'re just wondering what they\'re up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven\'t heard from you". Just start talking like you just thought of them.';
     if (memoryContext) {
       fullSystemPrompt += '\n\nMEMORY CONTEXT:' + memoryContext;
     }
