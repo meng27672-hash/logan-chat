@@ -2689,7 +2689,35 @@ function sanitizeCharacterReply(cid, text) {
     // 3. Remove timestamp-action pattern like [8:47 PM] at start of line
     cleaned = cleaned.replace(/^\s*\[\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)\]\s*/gi, '');
 
-    // 4. Detect and strip pure third-person action narration (the "她站在门口..." problem)
+    // 4. (v5.9.2) Remove "bare bracket" actions like [声音很轻] / [动作描述]
+    //    DeepSeek sometimes outputs actions as [content] (not [ACTION: ...] or *content*).
+    //    These are still action narration — strip them when NOT in f2f mode.
+    //    Heuristic: bracketed text that reads like sensory/action description.
+    const bareBracketLeading = /^\s*[\[【]\s*([^\]】\n]{1,80})\s*[\]】]\s*([\s\S]*)$/;
+    const bareBracketMatch = cleaned.match(bareBracketLeading);
+    if (bareBracketMatch) {
+      const inner = bareBracketMatch[1].trim();
+      const rest = bareBracketMatch[2].trim();
+      // Action-like content inside brackets (Chinese sensory/action cues, OR pure action like 声音XXX)
+      const looksLikeAction = /^(?:声音|动作|表情|眼神|目光|嘴角|眉头|语气|神态|转身|回头|侧头|抬头|低头|伸手|手|头|眼|眉|指尖|脚步|背影|侧脸|侧影|影子|脸|肩膀|肩|背|胸|腰|腿|手臂|手指|下巴|唇|嘴唇|呼吸|气息|声|笑容|笑意|唇角|苦笑|微笑|冷笑|叹气|叹息|犹豫|沉默|停顿|缓缓|慢慢|微微|轻轻|突然|忽然|猛地|静静|默默|淡淡|悠悠|转|看|望|盯|瞥|瞄|瞟|笑|叹|皱|挑|扬|点|摇|摆|偏|歪|凑|靠|倚|抱|搂|拉|拽|握|捏|摸|碰|拍|敲|敲了敲)/.test(inner)
+        || /[，,]\s*(?:像是|似乎|仿佛|一样|般)/.test(inner)
+        || /[，,]\s*(?:刚|正|才|已经)/.test(inner)
+        || /笑|叹|停|走|坐|站|靠|看|望|瞥|瞄|瞟|皱|挑|转|伸|按|敲|点|摇|摆|动|凑|倚|抱|握|捏|摸|碰|拍|拉|拽|收|放|抬|低|侧|偏|歪|抿|咬|舔|扬|眨|眯|闭|张|开|瞟/.test(inner);
+      if (looksLikeAction) {
+        // Strip the leading [xxx] action — keep the rest as the actual message
+        cleaned = rest;
+      }
+    }
+    // Also strip a TRAILING [xxx] action block (DeepSeek often appends them)
+    cleaned = cleaned.replace(/\s*[\[【]\s*([^\]】\n]{1,80})\s*[\]】]\s*$/g, (m, inner) => {
+      const trimmed = inner.trim();
+      const trailingLooksLikeAction = /^(?:声音|动作|表情|眼神|目光|嘴角|眉头|语气|神态|转身|回头|侧头|抬头|低头|伸手|手|头|眼|眉|指尖|脚步|背影|侧脸|侧影|影子|脸|肩膀|肩|背|胸|腰|腿|手臂|手指|下巴|唇|嘴唇|呼吸|气息|声|笑容|笑意|唇角|苦笑|微笑|冷笑|叹气|叹息|犹豫|沉默|停顿|缓缓|慢慢|微微|轻轻|突然|忽然|猛地|静静|默默|淡淡|悠悠)/.test(trimmed)
+        || /[，,]\s*(?:像是|似乎|仿佛|一样|般)/.test(trimmed)
+        || /笑|叹|停|走|坐|站|靠|看|望|瞥|瞄|瞟|皱|挑|转|伸|按|敲|点|摇|摆|动|凑|倚|抱|握|捏|摸|碰|拍|拉|拽|收|放|抬|低|侧|偏|歪|抿|咬|舔|扬|眨|眯|闭|张|开|瞟/.test(trimmed);
+      return trailingLooksLikeAction ? '' : m;
+    });
+
+    // 5. Detect and strip pure third-person action narration (the "她站在门口..." problem)
     // Pattern: Chinese text that reads like a novel narrator describing physical actions
     // Heuristics: contains third-person pronouns (她/他) + physical action verbs + no dialogue markers
     const thirdPersonPatterns = [
@@ -2755,10 +2783,12 @@ function appendMessage(who, text, replyRef, isStatus) {
       const after = text.substring(actionMatch.index + actionMatch[0].length).trimStart();
       mainText = (before + ' ' + after).trim();
     }
-    // ── FACE-TO-FACE TRACKING ──
-    // If this character message has [ACTION:] or *action*, they're with the user.
+    // ── FACE-TO-FACE TRACKING (v5.9.2) ──
+    // If this character message has [ACTION:] / *action* / "bare bracket action" like [声音很轻], they're with the user.
     // Save timestamp so getCharacterState skips the sleep roll.
-    if (actionContent || /\*[^*\n]+\*/.test(text)) {
+    const hasBareBracketAction = /^\s*[\[【]\s*[^\]】\n]{1,80}\s*[\]】]\s*[\s\S]*$/.test(text)
+      || /\[[^\]】\n]{1,80}\]\s*$/.test(text);
+    if (actionContent || /\*[^*\n]+\*/.test(text) || hasBareBracketAction) {
       localStorage.setItem('lastActionTime_' + who, Date.now().toString());
     }
   }
@@ -3891,8 +3921,10 @@ function appendRestoredMessage(who, text) {
       const after = text.substring(actionMatch.index + actionMatch[0].length).trimStart();
       mainText = (before + ' ' + after).trim();
     }
-    // ── FACE-TO-FACE TRACKING ──
-    if (actionContent || /\*[^*\n]+\*/.test(text)) {
+    // ── FACE-TO-FACE TRACKING (v5.9.2) ──
+    const hasBareBracketAction = /^\s*[\[【]\s*[^\]】\n]{1,80}\s*[\]】]\s*[\s\S]*$/.test(text)
+      || /\[[^\]】\n]{1,80}\]\s*$/.test(text);
+    if (actionContent || /\*[^*\n]+\*/.test(text) || hasBareBracketAction) {
       localStorage.setItem('lastActionTime_' + who, Date.now().toString());
     }
   }
