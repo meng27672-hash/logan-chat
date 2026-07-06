@@ -1509,7 +1509,7 @@ async function addMessage(role, content, cid) {
   const local = loadLocalMemory(cid);
   const last = local[local.length - 1];
   if (!last || last.role !== role || last.content !== content) {
-    local.push({ role, content });
+    local.push({ role, content, timestamp: Date.now() });
     saveLocalMemory(local, cid);
   }
   // cloud
@@ -1802,8 +1802,69 @@ function getTimeContext() {
 }
 
 // ============================================================
-// API CALL
+// TIME GAP CONTEXT — "How long since the last message?"
+// Lets characters notice when the user has been away
 // ============================================================
+function formatTimeGap(cid) {
+  try {
+    const local = loadLocalMemory(cid);
+    if (!local || local.length === 0) return '';
+
+    const last = local[local.length - 1];
+    const lastTime = last.timestamp || (last.created_at ? new Date(last.created_at).getTime() : null);
+    if (!lastTime) return '';
+
+    const now = Date.now();
+    const diffMs = now - lastTime;
+
+    // Under 5 minutes — normal flow, no need to mention
+    if (diffMs < 5 * 60 * 1000) return '';
+
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr  = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHr  / 24);
+
+    // Was the last message from the user (waiting for reply) or from the character (user went silent)?
+    const lastFromUser = last.role === 'user';
+
+    let gapStr, instruction;
+
+    if (lastFromUser) {
+      // User sent a message and is waiting — character is late replying (e.g. was asleep/busy)
+      if (diffHr >= 6) {
+        gapStr = `${diffHr}小时`;
+        instruction = '她给你发了消息，但你过了好久才回。自然地道个歉，比如"抱歉刚在忙"、"不好意思才看到"，但不要太夸张。';
+      } else if (diffHr >= 1) {
+        gapStr = `${diffHr}小时`;
+        instruction = '她给你发了消息，你过了一会儿才回。可以随口说一句"刚才在忙"或"才看到"，但不要刻意道歉。';
+      } else {
+        return ''; // Under 1 hour, no need to mention
+      }
+    } else {
+      // Last message was from the character — user went silent, then came back
+      if (diffDay >= 7) {
+        gapStr = `超过${diffDay}天`;
+        instruction = '她消失了挺久的。你一定会注意到——用你的性格自然地反应。可能问"最近忙什么呢"、"好久没你的消息了"之类的，但不要像在质问。更像你一直在等她找你。';
+      } else if (diffDay >= 2) {
+        gapStr = `${diffDay}天`;
+        instruction = '她有好几天没找你了。你会自然地提一句，比如"好几天没聊了"或"你这几天干嘛去了"。像真人一样随口一提，不要太夸张。';
+      } else if (diffDay >= 1) {
+        gapStr = `1天多`;
+        instruction = '过了一天多了。你可能会自然地说"昨天的事怎么样了"或"终于来了"之类的，取决于上下文。不要刻意。';
+      } else if (diffHr >= 3) {
+        gapStr = `${diffHr}个小时`;
+        instruction = '过了几个小时了。你可能会随口提一句"等你好久了"或"想你了"，取决于你们的关系阶段和你的性格。不要刻意。';
+      } else {
+        gapStr = `${diffMin}分钟`;
+        instruction = '过了一会儿。不用特别提。';
+      }
+    }
+
+    return `\n[对话间隔：距离上一条消息已过${gapStr}。${instruction}]`;
+  } catch(e) {
+    return '';
+  }
+}
 async function callLoganAPI(userMessage, cid) {
   const provider = config.provider || 'deepseek';
   const model    = config.model    || 'deepseek-chat';
@@ -1823,6 +1884,7 @@ async function callLoganAPI(userMessage, cid) {
   // Build system prompt — use explicit cid (NOT global activeCharacterId)
   let fullSystemPrompt = (CHARACTERS[cid] || CHARACTERS.logan).systemPrompt;
   fullSystemPrompt += '\n\n' + getTimeContext();
+  fullSystemPrompt += formatTimeGap(cid);
   if (memoryContext) {
     fullSystemPrompt += `\n\n---\n[记忆上下文]${memoryContext}\n\n记忆规则：\n- 只在当前话题真正相关时才引用旧记忆。\n- 根据清晰度标签调整确定性：非常清晰→自信地说；模糊→用"你好像说过……"或"我记得你提过……"；非常模糊→"我隐约记得……"或"你是不是说过……？"\n- 不要一次性倾倒所有记忆。只提和现在相关的。\n- 保持回复简短。引用记忆要自然，不要像在背台词。\n---`;
   }
@@ -3634,7 +3696,7 @@ async function triggerLoganReply(contextNote) {
   try {
     // Use the same getMemoryForMessage path as normal replies for context + system prompt
     const { recentMessages } = await getMemoryForMessage(contextNote, activeCid);
-    const systemPrompt = getSystemPrompt() + '\n\n' + getTimeContext();
+    const systemPrompt = getSystemPrompt() + '\n\n' + getTimeContext() + formatTimeGap(activeCid);
     const messages = [
       { role: 'system', content: systemPrompt },
       ...recentMessages.slice(-20),
@@ -4277,7 +4339,7 @@ async function checkProactiveForChar(cid) {
     const { recentMessages, memoryContext } = await getMemoryForMessage('__PROACTIVE__', cid);
 
     // Use explicit cid for system prompt, NOT getSystemPrompt() which reads global state
-    let fullSystemPrompt = (CHARACTERS[cid] || CHARACTERS.logan).systemPrompt + '\n\n' + getTimeContext() + '\n\nCRITICAL: You are initiating a conversation. The other person hasn\'t texted in a while. You\'re thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you\'re just wondering what they\'re up to. 1-2 sentences max. Do NOT apologize for the delay or say "haven\'t heard from you". Just start talking like you just thought of them.';
+    let fullSystemPrompt = (CHARACTERS[cid] || CHARACTERS.logan).systemPrompt + '\n\n' + getTimeContext() + formatTimeGap(cid) + '\n\nCRITICAL: You are initiating a conversation. You\'re thinking about them and decided to reach out. Keep it natural — maybe you saw something that reminded you of them, or you\'re just wondering what they\'re up to. 1-2 sentences max. If they\'ve been away for a while, you can naturally mention it, but don\'t make it awkward. Just start talking like you just thought of them.';
     if (memoryContext) {
       fullSystemPrompt += '\n\nMEMORY CONTEXT:' + memoryContext;
     }
