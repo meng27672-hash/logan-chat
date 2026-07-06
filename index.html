@@ -63,9 +63,9 @@ body{background:#000;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",
 .read-status.read{color:#0095F6}
 
 /* === ACTION SYSTEM: 方案一 + 方案二 === */
-/* 方案二：独立动作气泡（居中、半透明、无头像、斜体） */
-.msg-row.action{display:flex;flex-direction:column;align-self:center;align-items:center;max-width:88%;margin:6px 0}
-.msg-row.action .msg-bubble{background:rgba(28,28,30,0.45);color:#9898B0;font-style:italic;font-size:13.5px;line-height:1.5;border-radius:14px;padding:7px 16px;text-align:center;border:1px solid rgba(255,255,255,0.05);max-width:100%}
+/* 方案二：半透明小悬浮块（v5.9.3：紧贴对话气泡，左对齐 + 小左边距，像微信"时间"灰条那种感觉） */
+.msg-row.action{display:flex;flex-direction:column;align-self:flex-start;align-items:flex-start;max-width:88%;margin:2px 0 2px 56px}
+.msg-row.action .msg-bubble{background:rgba(28,28,30,0.45);color:#9898B0;font-style:italic;font-size:12.5px;line-height:1.5;border-radius:10px;padding:5px 12px;text-align:left;border:1px solid rgba(255,255,255,0.04);max-width:100%}
 .msg-row.action .avatar-small{display:none!important}
 .msg-row.action .msg-time{display:none}
 /* 方案一：内联斜体动作文字 */
@@ -1170,7 +1170,10 @@ function renderChatList() {
     const lastMsg = getLastMessagePreview(id);
     const unread = getUnreadCount(id);
     const timeStr = lastMsg ? formatChatListTime(lastMsg.timestamp) : '';
-    const preview = lastMsg ? (lastMsg.role === 'user' ? 'You: ' : '') + lastMsg.content.substring(0, 50) : '';
+    // v5.9.3: Strip action tags and emoji short codes from inbox preview
+    //         so users see a clean "real" dialogue snippet, not [ACTION: ...]
+    const cleanPreview = lastMsg ? stripPreviewArtifacts(lastMsg.content).substring(0, 50) : '';
+    const preview = lastMsg ? (lastMsg.role === 'user' ? 'You: ' : '') + cleanPreview : '';
     const nickname = getNickname(id);
     const displayName = nickname || char.name;
     const nameHtml = nickname
@@ -2879,6 +2882,28 @@ function appendMessage(who, text, replyRef, isStatus) {
 
 function scrollToBottom() {
   requestAnimationFrame(() => { messagesEl.scrollTop = messagesEl.scrollHeight; });
+}
+
+// v5.9.3: Strip action tags / emoji short codes / timestamp prefixes from a message
+//         so the inbox preview shows a clean dialogue snippet, not [ACTION: ...]
+function stripPreviewArtifacts(text) {
+  if (!text || typeof text !== 'string') return '';
+  let cleaned = text;
+  // 1. [ACTION: ...]
+  cleaned = cleaned.replace(/\[ACTION:\s*.+?\]\s*/gi, '');
+  // 2. *inline action*
+  cleaned = cleaned.replace(/\*[^*\n]{1,80}?\*/g, '');
+  // 3. [10:54 PM] / [8:47 PM] timestamp prefixes (whole-message or trailing)
+  cleaned = cleaned.replace(/\[\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)\]\s*/gi, '');
+  // 4. Bare bracket actions like [声音很轻] / [脚步声]
+  cleaned = cleaned.replace(/^[\[【]\s*[^\]】\n]{1,80}\s*[\]】]\s*/, '');
+  cleaned = cleaned.replace(/\s*[\[【]\s*[^\]】\n]{1,80}\s*[\]】]\s*$/, '');
+  // 5. Emoji short codes like [heart_eyes] / [giggle] / [smile] — convert to blank
+  //    (we don't have the emoji table handy here, so just strip them)
+  cleaned = cleaned.replace(/\[[a-z_]{2,30}\]/gi, '');
+  // 6. Collapse whitespace
+  cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+  return cleaned || '…';
 }
 
 function escapeHtml(s) {
