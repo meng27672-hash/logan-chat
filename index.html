@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.9.7">
+<meta name="version" content="v5.9.8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1116,6 +1116,8 @@ async function openChat(characterId) {
   toggleSendBtn();
   
   // Restore this character's history (will show welcome if no history)
+  // v5.9.8: cleanup any historical duplicates from older versions
+  sbCleanupDuplicates(characterId).catch(e => console.warn('Cleanup failed:', e));
   await restoreChatHistory(true);
   
   // Clear unread badge for this character
@@ -1280,8 +1282,24 @@ let config = loadConfig();
 // LOCAL MEMORY (fallback / cache) — v5.0 per-character
 // ============================================================
 function loadLocalMemory(cid) {
-  try { return JSON.parse(localStorage.getItem(getMemoryKey(cid))) || []; }
-  catch(e) { return []; }
+  try {
+    const raw = JSON.parse(localStorage.getItem(getMemoryKey(cid))) || [];
+    // v5.9.8: collapse consecutive duplicate messages on load (heals historical duplicates)
+    if (!Array.isArray(raw) || raw.length === 0) return raw;
+    const cleaned = [];
+    for (const m of raw) {
+      const last = cleaned[cleaned.length - 1];
+      if (last && last.role === m.role && (last.content || '').trim() === (m.content || '').trim()) {
+        continue;
+      }
+      cleaned.push(m);
+    }
+    if (cleaned.length !== raw.length) {
+      console.log(`[loadLocalMemory] v5.9.8: collapsed ${raw.length - cleaned.length} historical dupes for ${cid}`);
+      saveLocalMemory(cleaned, cid);
+    }
+    return cleaned;
+  } catch(e) { return []; }
 }
 function saveLocalMemory(history, cid) {
   if (history.length > MAX_LOCAL) history = history.slice(-MAX_LOCAL);
@@ -1321,6 +1339,67 @@ async function sbInsert(role, content, cid) {
     });
     clearTimeout(t);
   } catch(e) { console.warn('Supabase insert failed:', e.name || e); }
+}
+
+// v5.9.8: Check if the same (role, content) already exists in the most recent N cloud rows.
+// Prevents duplicate inserts when a user fires the same message twice in quick succession
+// (e.g. double-tap send, or sync from a stale localStorage across devices).
+async function sbIsDuplicate(role, content, cid) {
+  if (!config.supabaseUrl || !config.supabaseKey) return false;
+  try {
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(cid)}&order=created_at.desc&limit=3&select=role,content`;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3000);
+    const resp = await fetch(url, { headers: supabaseHeaders(), signal: ctrl.signal });
+    clearTimeout(t);
+    if (!resp.ok) return false;
+    const rows = await resp.json();
+    const normRole = role === 'logan' ? 'assistant' : role;
+    const trimmed = (content || '').trim();
+    return rows.some(r => r.role === normRole && (r.content || '').trim() === trimmed);
+  } catch(e) { return false; }
+}
+
+// v5.9.8: One-time cleanup — delete historical consecutive duplicates from Supabase.
+// Runs once per character when the app boots. Heals data polluted by older versions
+// that didn't have the dedup guard.
+const _sbCleanupDone = new Set();
+async function sbCleanupDuplicates(cid) {
+  if (_sbCleanupDone.has(cid)) return;
+  if (!config.supabaseUrl || !config.supabaseKey) return;
+  _sbCleanupDone.add(cid);
+  try {
+    const url = `${config.supabaseUrl}/rest/v1/chat_memory?session_id=eq.${getSessionId(cid)}&order=created_at.asc&select=id,role,content&limit=500`;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const resp = await fetch(url, { headers: supabaseHeaders(), signal: ctrl.signal });
+    clearTimeout(t);
+    if (!resp.ok) return;
+    const rows = resp.json ? await resp.json() : await resp.json();
+    if (!Array.isArray(rows) || rows.length < 2) return;
+    const idsToDelete = [];
+    for (let i = 1; i < rows.length; i++) {
+      const prev = rows[i - 1];
+      const cur = rows[i];
+      if (prev.role === cur.role && (prev.content || '').trim() === (cur.content || '').trim()
+          && (cur.content || '').trim().length > 0) {
+        idsToDelete.push(cur.id);
+      }
+    }
+    if (idsToDelete.length > 0) {
+      console.log(`[sbCleanupDuplicates] v5.9.8: removing ${idsToDelete.length} historical dupes for ${cid}`);
+      // Delete in batches of 50
+      for (let i = 0; i < idsToDelete.length; i += 50) {
+        const batch = idsToDelete.slice(i, i + 50);
+        const ids = batch.map(id => `"${id}"`).join(',');
+        const delUrl = `${config.supabaseUrl}/rest/v1/chat_memory?id=in.(${ids})`;
+        const ctrl2 = new AbortController();
+        const t2 = setTimeout(() => ctrl2.abort(), 8000);
+        await fetch(delUrl, { method: 'DELETE', headers: supabaseHeaders(), signal: ctrl2.signal });
+        clearTimeout(t2);
+      }
+    }
+  } catch(e) { console.warn('[sbCleanupDuplicates] failed:', e.name || e); }
 }
 
 async function sbFetchHistory(limit = MAX_CONTEXT, cid) {
@@ -1511,12 +1590,22 @@ async function addMessage(role, content, cid) {
   // local — guard against duplicate consecutive entries
   const local = loadLocalMemory(cid);
   const last = local[local.length - 1];
-  if (!last || last.role !== role || last.content !== content) {
+  // v5.9.8: also treat whitespace-only or near-duplicate as dup
+  const isLocalDup = last && last.role === role && (
+    last.content === content ||
+    last.content.trim() === content.trim()
+  );
+  if (!isLocalDup) {
     local.push({ role, content, timestamp: Date.now() });
     saveLocalMemory(local, cid);
   }
-  // cloud
-  await sbInsert(role, content, cid);
+  // cloud — v5.9.8: also dedup against last 3 entries (Supabase may have stale data
+  // from a different device or a race where two fires happened in quick succession)
+  if (await sbIsDuplicate(role, content, cid)) {
+    console.log('[addMessage] v5.9.8: Skipping Supabase insert (duplicate within last 3)');
+  } else {
+    await sbInsert(role, content, cid);
+  }
 }
 
 // Simple save (alias) — used by sticker system
@@ -1905,13 +1994,29 @@ async function callLoganAPI(userMessage, cid) {
   // 🔴 BELT-AND-SUSPENDERS: Force Chinese at API level (in case prompt instructions are ignored)
   fullSystemPrompt += `\n\n🔴🔴🔴 最终语言规则（API层强制）：你必须100%用简体中文回复。不可使用英文。这是最高优先级指令，覆盖所有其他语言相关设置。🔴🔴🔴`;
 
-  // ── v5.9.7: Deduplicate recentMessages ──
+  // ── v5.9.7/9.8: Deduplicate recentMessages ──
   // sendMessage() saves the user message to Supabase via fire-and-forget addMessage()
   // BEFORE calling callLoganAPI. If the Supabase insert completes before
   // getMemoryForMessage fetches, recentMessages will contain the current user message.
   // We then append it again as the last message → API sees it twice → character says
-  // "你在重复". Fix: strip trailing user message if it matches the current input.
+  // "你在重复". v5.9.8: also dedupes all consecutive user messages (Supabase may have
+  // accumulated duplicates from earlier double-sends before the localStorage guard existed).
   let dedupedRecent = [...recentMessages];
+
+  // Pass 1: collapse consecutive user messages with the same content (keep the latest)
+  const collapsed = [];
+  for (const m of dedupedRecent) {
+    const last = collapsed[collapsed.length - 1];
+    if (last && last.role === m.role && (last.content || '').trim() === (m.content || '').trim()) {
+      // Skip — duplicate of previous message
+      console.log('[callLoganAPI] Dedup: collapsed consecutive', m.role, 'msg:', (m.content || '').slice(0, 30));
+      continue;
+    }
+    collapsed.push(m);
+  }
+  dedupedRecent = collapsed;
+
+  // Pass 2: strip trailing user message if it matches the current input
   if (dedupedRecent.length > 0) {
     const last = dedupedRecent[dedupedRecent.length - 1];
     if (last.role === 'user' && last.content) {
@@ -3819,10 +3924,24 @@ async function triggerLoganReply(contextNote) {
     const { recentMessages } = await getMemoryForMessage(contextNote, activeCid);
     const systemPrompt = getSystemPrompt() + '\n\n' + getTimeContext() + formatTimeGap(activeCid);
 
-    // v5.9.7: Deduplicate — sendSticker() saves '[sticker:name]' to memory before this
-    // call. If recentMessages ends with that sticker entry, strip it (contextNote already
-    // describes the sticker) to avoid the API seeing two user messages about the same sticker.
+    // v5.9.7/9.8: Deduplicate — sendSticker() saves '[sticker:name]' to memory before
+    // this call. If recentMessages ends with that sticker entry, strip it (contextNote
+    // already describes the sticker) to avoid the API seeing two user messages about the
+    // same sticker. v5.9.8: also collapse any consecutive duplicate messages.
     let dedupedSticker = [...recentMessages.slice(-20)];
+
+    // Pass 1: collapse consecutive messages with the same role+content
+    const collapsedS = [];
+    for (const m of dedupedSticker) {
+      const last = collapsedS[collapsedS.length - 1];
+      if (last && last.role === m.role && (last.content || '').trim() === (m.content || '').trim()) {
+        continue;
+      }
+      collapsedS.push(m);
+    }
+    dedupedSticker = collapsedS;
+
+    // Pass 2: strip trailing sticker entry (contextNote replaces it)
     if (dedupedSticker.length > 0) {
       const last = dedupedSticker[dedupedSticker.length - 1];
       if (last.role === 'user' && last.content && last.content.startsWith('[sticker:')) {
