@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.9.10">
+<meta name="version" content="v5.9.11">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2962,6 +2962,56 @@ function sanitizeCharacterReply(cid, text) {
   }
 }
 
+// ── v5.9.11: Restore-only sanitizer ──
+// When restoring chat history, we must PRESERVE action formatting ([ACTION:], bare
+// brackets, *action*) so the action extraction code in appendRestoredMessage can
+// render action blocks. We only strip first-person / third-person narration (the
+// v5.9.10 rules 5 & 6) which are formatting issues, not f2f-dependent.
+// The full sanitizeCharacterReply is still used for real-time messages.
+function sanitizeForRestore(cid, text) {
+  try {
+    if (!text || typeof text !== 'string') return text;
+    if (cid === 'user') return text;
+
+    let cleaned = text;
+
+    // ── Rule 5 (v5.9.10): Strip FIRST-PERSON action narration ──
+    const _fpTestText = cleaned.replace(/^[\[【][^\]】\n]{1,120}[\]】]\s*/, '').trim();
+    const _hasDialogueQuotes = /[「"『"]/.test(_fpTestText) || /[」"』"]/.test(_fpTestText);
+    const _hasTerminalQuestion = /[?？!！]\s*$/.test(_fpTestText);
+    const _fpActionMatches = _fpTestText.match(/(?:我|你)[^。\n?？!！]{0,30}(?:看|拿|站|坐|走|伸|放|摸|点|摇|动|触|拍|推|拉|握|捏|敲|抬|低|侧|偏|歪|抿|扬|眨|眯|闭|张|开|瞟|收|翻|转|手指|掌心|喉咙|胸口|心跳|呼吸|没接话|没说话|没动|沉默|盯着|望着|靠在|回头|低头|抬头)/g);
+    if (!_hasDialogueQuotes && !_hasTerminalQuestion && _fpActionMatches && _fpActionMatches.length >= 2 && _fpTestText.length >= 30) {
+      console.log(`[Restore Sanitizer v5.9.11] Stripped first-person action narration (${_fpActionMatches.length} matches):`, cleaned.slice(0, 60));
+      return '…';
+    }
+
+    // ── Rule 6: Strip pure third-person action narration ──
+    const thirdPersonPatterns = [
+      /^(?:她|他|Shane|Logan|Spencer)(?:站|坐|躺|靠|走|转|看|盯|瞄|瞥|望|歪|垂|抬|伸|拿|放|摸|拨|拽|撩|咬|舔|笑|叹|皱|眯|眨|闭|张|开|点|摇|耸|摊|抱|靠|倚|趴|跨|退|进|出|回)/,
+      /^(?:她|他|这?个?(?:女孩|女人|家伙|人))(?:把|被|让|在|往|朝|向)/,
+      /(?:夜风|阳光|灯光|月光|阴影|影子|头发|手指|嘴角|眼|眉|头|肩|背|胸|腰|腿)(?:吹|照|洒|落|扫|掠|动|扬|皱|挑|抽|移|转)/,
+      /^(?:没|就|便|才|却|而).{0,4}(?:站|坐|靠|走|看|说|问|答|回|转|进|出)/,
+    ];
+    const lines = cleaned.split('\n').filter(l => l.trim());
+    if (lines.length <= 2) {
+      const joined = lines.join(' ').trim();
+      const isPureNarration = thirdPersonPatterns.some(p => p.test(joined)) &&
+        !/[。？！？!]\s*[「"『]/.test(joined) &&
+        !/^[\[（(]/.test(cleaned) &&
+        joined.length > 10;
+      if (isPureNarration && !/[?!？！]/.test(joined.substring(joined.length - 5))) {
+        console.log(`[Restore Sanitizer] Stripped pure action narration for ${cid}:`, joined.slice(0, 60));
+        return '…';
+      }
+    }
+
+    return cleaned;
+  } catch(e) {
+    console.warn('[Restore Sanitizer] Error — returning original text:', e.message);
+    return text;
+  }
+}
+
 
 function appendMessage(who, text, replyRef, isStatus) {
   // ── ACTION SYSTEM: 方案一 + 方案二 ──
@@ -3114,9 +3164,13 @@ function stripPreviewArtifacts(text) {
   cleaned = cleaned.replace(/\*[^*\n]{1,80}?\*/g, '');
   // 3. [10:54 PM] / [8:47 PM] timestamp prefixes (whole-message or trailing)
   cleaned = cleaned.replace(/\[\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)\]\s*/gi, '');
-  // 4. Bare bracket actions like [声音很轻] / [脚步声]
-  cleaned = cleaned.replace(/^[\[【]\s*[^\]】\n]{1,80}\s*[\]】]\s*/, '');
-  cleaned = cleaned.replace(/\s*[\[【]\s*[^\]】\n]{1,80}\s*[\]】]\s*$/, '');
+  // 4. (v5.9.11) Bare bracket actions — strip ALL brackets globally
+  //    Previous version only stripped leading/trailing, missing middle brackets like
+  //    "可以。不过——[她收回手]——你穿我的衣服". Now strips all brackets everywhere.
+  //    [ACTION:] already stripped by rule 1, timestamps by rule 3, so remaining
+  //    brackets are bare actions / emoji codes / user refs — all should be stripped
+  //    from preview.
+  cleaned = cleaned.replace(/[\[【]\s*[^\]】\n]{1,120}\s*[\]】]/g, '');
   // 5. Emoji short codes like [heart_eyes] / [giggle] / [smile] — convert to blank
   //    (we don't have the emoji table handy here, so just strip them)
   cleaned = cleaned.replace(/\[[a-z_]{2,30}\]/gi, '');
@@ -4173,9 +4227,13 @@ async function restoreChatHistory(force = false) {
 
 // appendRestoredMessage: like appendMessage but shows ✓✓ for user messages (already read)
 function appendRestoredMessage(who, text) {
-  // ── SANITIZER: strip action content when NOT in face-to-face mode (v5.8.1) ──
+  // ── v5.9.11: Use sanitizeForRestore instead of sanitizeCharacterReply ──
+  // The full sanitizer strips ALL action formatting in non-f2f mode, which causes
+  // action blocks to disappear on restore. sanitizeForRestore only strips
+  // first-person/third-person narration while preserving [ACTION:] / bare brackets
+  // so the action extraction code below can render them as action blocks.
   if (who !== 'user') {
-    text = sanitizeCharacterReply(who, text);
+    text = sanitizeForRestore(who, text);
   }
 
   // ── ACTION SYSTEM: only for character messages, NOT user messages ──
