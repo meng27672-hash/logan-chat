@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="version" content="v5.9.9">
+<meta name="version" content="v5.9.10">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2001,7 +2001,22 @@ async function callLoganAPI(userMessage, cid) {
   - "我走回你桌前坐下。" ✅（她能看到我走过去）
   - "我没接话。" ✅（她能看到我沉默）
   - 用 [动作] 块表达情绪：[推眼镜] [避开视线] [手指无意识敲桌面] [沉默]
-**核心原则：让对方从我的行为里读出我的状态，而不是被我直接告知。** 这是最重要的角色真实感来源。`;
+**核心原则：让对方从我的行为里读出我的状态，而不是被我直接告知。** 这是最重要的角色真实感来源。
+
+[🚨 v5.9.10 硬规则：文字聊天不能整段用第一人称叙述动作]
+如果你的回复是关于"我做了什么/我看到了什么"的连续叙述（无 [action] 块形式、无对话引号），整段都必须重写。
+⚠️ 错误示例（你刚才的输出就是这种）：
+  我一时说不出话。我看着桌上的东西，一件一件拿起来，像在检查证物一样仔细——但我手指在微微发抖。海报和名片。一个研究团队。你觉得我会感兴趣——
+✅ 正确改写（二选一）：
+  方案A — [动作]块开头 + 简短对话：
+    [拿起桌上的海报，指尖在发抖] 巴赫平均律的黑胶唱片，以及……一条中古领带。
+  方案B — 极简动作 + 提问：
+    [我拿起海报看了一下，没说话] 你挑的？
+⚠️ 检测条件：你的回复如果整段是"我XXX，我XXX，我XXX……"（≥2 句连续第一人称动作叙述），且没有任何对话引号（"「"），就会被系统**整体删除**只显示 "…"。所以一定要：
+  - 要么用 [动作] 块写
+  - 要么直接说一句话（带引号或直接陈述）
+  - 要么混搭：[动作] + 一句话
+**关键：文字聊天中，看到礼物/物品/信息时，你的第一反应应该是说一句话（哪怕是"嗯"/"什么"/"这是给我的？"），而不是连续描述自己的内心反应。**`;
     }
   }
 
@@ -2883,7 +2898,23 @@ function sanitizeCharacterReply(cid, text) {
       return trailingLooksLikeAction ? '' : m;
     });
 
-    // 5. Detect and strip pure third-person action narration (the "她站在门口..." problem)
+    // 5. (v5.9.10) Strip FIRST-PERSON action narration like "我看着…/我拿起…/我站在…"
+    //    Even when there is no bracket. Pattern: a long message with multiple "我/你 + action
+    //    verb" segments, no dialogue quotes, and no terminal question to the user. In non-f2f
+    //    mode the user cannot see this — the message should be expressed as [action] block or
+    //    trimmed. Detection: count occurrences of (我|你)(...)?(看|拿|站|坐|走|伸|...); if ≥2
+    //    matches AND no quote marks AND no terminal question → strip.
+    //    The user-reported problematic Spencer message has 2+ such matches → correctly stripped.
+    const _fpTestText = cleaned.replace(/^[\[【][^\]】\n]{1,120}[\]】]\s*/, '').trim();
+    const _hasDialogueQuotes = /[「"『"]/.test(_fpTestText) || /[」"』"]/.test(_fpTestText);
+    const _hasTerminalQuestion = /[?？!！]\s*$/.test(_fpTestText);
+    const _fpActionMatches = _fpTestText.match(/(?:我|你)[^。\n?？!！]{0,30}(?:看|拿|站|坐|走|伸|放|摸|点|摇|动|触|拍|推|拉|握|捏|敲|抬|低|侧|偏|歪|抿|扬|眨|眯|闭|张|开|瞟|收|翻|转|手指|掌心|喉咙|胸口|心跳|呼吸|没接话|没说话|没动|沉默|盯着|望着|靠在|回头|低头|抬头)/g);
+    if (!_hasDialogueQuotes && !_hasTerminalQuestion && _fpActionMatches && _fpActionMatches.length >= 2 && _fpTestText.length >= 30) {
+      console.log(`[Sanitizer v5.9.10] Stripped first-person action narration (${_fpActionMatches.length} matches):`, cleaned.slice(0, 60));
+      return '…';
+    }
+
+    // 6. Detect and strip pure third-person action narration (the "她站在门口..." problem)
     // Pattern: Chinese text that reads like a novel narrator describing physical actions
     // Heuristics: contains third-person pronouns (她/他) + physical action verbs + no dialogue markers
     const thirdPersonPatterns = [
